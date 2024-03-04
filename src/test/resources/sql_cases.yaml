@@ -1,0 +1,214 @@
+- comment: 简单表关联：join + on 语句
+  oracle_sql: >
+    select * from tableA a join tableB b on a.id = b.id
+    left join tableC c on c.id = a.id
+    right join tableD d on d.id = b.id
+    where a.name = ? and b.name = ''
+  tidb_sql: >
+    select * from tableA a join tableB b on a.id = b.id
+    left join tableC c on c.id = a.id
+    right join tableD d on d.id = b.id
+    where a.name = ? and b.name = null
+
+- comment: 简单表关联：逗号 + where 语句
+  oracle_sql: >
+    select * from tableA a, tableB b where a.id = b.id
+    and a.name  = ? and b.name = ''
+  tidb_sql: >
+    select * from tableA a join tableB b on a.id = b.id
+    where a.name = ? and b.name = null
+
+- comment: 表和简单子查询关联：join + on 语句
+  oracle_sql: >
+    select * from tableA a join (select * from tableB b where b.name = ?) b on a.id = b.id
+    where a.name  = ? and b.name = ''
+  tidb_sql: >
+    select * from tableA a join ( select * from tableB b where b.name = ? ) b on a.id = b.id
+    where a.name = ? and b.name = null
+
+- comment: 表和简单子查询关联：逗号 + where 语句
+  oracle_sql: >
+    select * from tableA a, (select * from tableB b where b.name = ?) b where a.id = b.id
+    and a.name  = ? and b.name = ''
+  tidb_sql: >
+    select * from tableA a join ( select * from tableB b where b.name = ? ) b on a.id = b.id
+    where a.name = ? and b.name = null
+
+- comment: 简单子查询和表关联：join + on 语句
+  oracle_sql: >
+    select * from (select * from tableB b where b.name = ?) b join tableA a on a.id = b.id
+    where a.name  = ? and b.name = ''
+  tidb_sql: >
+    select * from tableA a join ( select * from tableB b where b.name = ? ) b on a.id = b.id
+    where a.name = ? and b.name = null
+
+- comment: 简单子查询和表关联：逗号 + where 语句
+  oracle_sql: >
+    select * from (select * from tableB b where b.name = ? ) b, tableA a where a.id = b.id
+    and a.name  = ? and b.name = ''
+  tidb_sql: >
+    select * from tableA a join ( select * from tableB b where b.name = ? ) b on a.id = b.id
+    where a.name = ? and b.name = null
+
+- comment: 表和关联子查询关联：join + on 语句
+  oracle_sql: >
+    select * from tableA a join (select * from tableB b left join tableC c on b.id = c.id) b on a.id = b.id
+    where a.name  = ? and b.name = ''
+  tidb_sql: >
+    select * from tableA a join ( select * from tableB b left join tableC c on b.id = c.id ) b on a.id = b.id
+    where a.name = ? and b.name = null
+
+- comment: 表和关联子查询关联：逗号 + where 语句
+  oracle_sql: >
+    select * from tableA a, (select * from tableB b, tableC c where b.id = c.id(+)) b
+    where a.id = b.id and a.name  = ? and b.name = ''
+  tidb_sql: >
+    select * from tableA a join ( select * from tableB b left join tableC c on b.id = c.id ) b
+    on a.id = b.id where a.name = ? and b.name = null
+
+- comment: 关联子查询和表关联：join + on 语句
+  oracle_sql: >
+    select * from (select * from tableB b left join tableC c on b.id = c.id) b right join tableA a on a.id = b.id
+    where a.name  = ? and b.name = ''
+  tidb_sql: >
+    select * from tableA a left join ( select * from tableB b left join tableC c on b.id = c.id ) b on a.id = b.id
+    where a.name = ? and b.name = null
+
+- comment: 关联子查询和表关联：逗号 + where 语句
+  oracle_sql: >
+    select * from (select * from tableB b, tableC c where b.id = c.id(+)) b, tableA a
+    where a.id(+) = b.id and a.name = ? and b.name = ''
+  tidb_sql: >
+    select * from tableA a right join
+    ( select * from tableB b left join tableC c on b.id = c.id ) b
+    on b.id = a.id where a.name = ? and b.name = null
+
+- comment: 简单表顺序关联：join + on 语句
+  oracle_sql: >
+    select * from tableA a join tableB b on a.id = b.id
+    left join tableC c on c.id = b.id
+    right join tableD d on d.id = b.id
+    where a.id = 1 and b.name  = ? and c.name = '' and d.name = ?
+  tidb_sql: >
+    select * from tableA a join tableB b on a.id = b.id
+    left join tableC c on c.id = b.id
+    right join tableD d on d.id = b.id
+    where a.id = 1 and b.name  = ? and c.name = null and d.name = ?
+
+- comment: 简单表乱序关联：join + on 语句
+  oracle_sql: >
+    select * from tableC c join tableB b on c.id = b.id
+    right join tableD d on d.id = b.id
+    left join tableA a on a.id = b.id
+    where a.id = 1 and d.name = ? and b.name  = ? and c.name = ''
+  tidb_sql: >
+    select * from tableA a right join tableB b on a.id = b.id
+    join tableC c on c.id = b.id
+    right join tableD d on d.id = b.id
+    where a.id = 1 and d.name = ? and b.name = ? and c.name = null
+
+- comment: 简单表顺序关联：逗号 + where 语句
+  oracle_sql: >
+    select * from tableA a, tableB b, tableC c, tableD d
+    where a.id = b.id and b.id = c.id(+) and b.id(+) = d.id
+    and a.id = 1 and b.name  = ? and c.name = '' and d.name = ?
+  tidb_sql: >
+    select * from tableA a join tableB b on a.id = b.id
+    left join tableC c on b.id = c.id
+    right join tableD d on d.id = b.id
+    where a.id = 1 and b.name = ? and c.name = null and d.name = ?
+
+- comment: 简单表乱序关联：逗号 + where 语句
+  oracle_sql: >
+    select * from tableC c, tableB b, tableD d, tableA a
+    where a.id = b.id and b.id = c.id(+) and b.id(+) = d.id
+    and a.id = 1 and b.name  = ? and c.name = '' and d.name = ?
+  tidb_sql: >
+    select * from tableA a join tableB b on a.id = b.id
+    left join tableC c on b.id = c.id
+    right join tableD d on d.id = b.id
+    where a.id = 1 and b.name = ? and c.name = null and d.name = ?
+
+- comment: 简单表乱序关联子关联查询：join + on 语句
+  oracle_sql: >
+    select * from tableB b,
+    (select * from tableC c left join tableA a on a.id = c.id where a.name = ?) a
+    where b.id = a.id
+  tidb_sql: >
+    select * from ( select * from tableA a right join tableC c on a.id = c.id where a.name = ? ) a
+    join tableB b on b.id = a.id
+
+- comment: 简单表乱序关联子关联查询：逗号 + where 语句
+  oracle_sql: >
+    select * from tableB b,
+    (select * from tableC c, tableA a on a.id = c.id(+) where a.name = ?) a
+    where b.id = a.id
+  tidb_sql: >
+    select * from ( select * from tableA a left join tableC c on a.id = c.id where a.name = ? ) a
+    join tableB b on b.id = a.id
+
+- comment: 子关联查询乱序关联简单表：join + on 语句
+  oracle_sql: >
+    select * from (select * from tableC c left join tableB b on b.id = c.id where b.name = ?) b,
+    tableA a where b.id = a.id
+  tidb_sql: >
+    select * from tableA a join ( select * from tableB b right join tableC c on b.id = c.id where b.name = ? ) b
+    on b.id = a.id
+
+
+- comment: 子关联查询乱序关联简单表：逗号 + where 语句
+  oracle_sql: >
+    select * from (select * from tableC c, tableB b where b.id = c.id(+) and c.name = ?) b,
+    tableA a where b.id = a.id
+  tidb_sql: >
+    select * from tableA a join
+    ( select * from tableB b left join tableC c on b.id = c.id where c.name = ? ) b
+    on b.id = a.id
+
+- comment: 简单表、子简单查询、子关联查询顺序关联：join + on 语句
+  oracle_sql: >
+    select * from tableA a
+    join (select * from tableB b where b.name = ?) b on a.id = b.id
+    left join (select * from tableC c right join tableD d on c.id = d.id where c.name = ?) c on c.id = a.id
+    where c.id = ?
+  tidb_sql: >
+    select * from tableA a
+    join ( select * from tableB b where b.name = ? ) b on a.id = b.id
+    left join ( select * from tableC c right join tableD d on c.id = d.id where c.name = ? ) c on c.id = a.id
+    where c.id = ?
+#
+- comment: 简单表、子简单查询、子关联查询顺序关联：逗号 + where 语句
+  oracle_sql: >
+    select * from tableA a,
+    (select * from tableB b where b.name = ?) b,
+    left join (select * from tableC c, tableD d on c.id(+) = d.id where c.name = ?) c
+    where a.id = b.id and b.name = c.name(+) and c.id = ?
+  tidb_sql: >
+    select * from tableA a
+    join ( select * from tableB b where b.name = ? ) b on a.id = b.id
+    left join ( select * from tableC c right join tableD d on d.id = c.id where c.name = ? ) c on b.name = c.name
+    where c.id = ?
+
+- comment: 简单表、子简单查询、子关联查询乱序关联：join + on 语句
+  oracle_sql: >
+    select * from (select * from tableC c right join tableD d on c.id = d.id where c.name = ?) c
+    left join tableA a on c.id = a.id
+    join (select * from tableB b where b.name = ?) b on a.id = b.id
+    where c.id = ?
+  tidb_sql: >
+    select * from tableA a
+    join ( select * from tableB b where b.name = ? ) b on a.id = b.id
+    right join ( select * from tableC c right join tableD d on c.id = d.id where c.name = ? ) c on c.id = a.id
+    where c.id = ?
+
+- comment: 简单表、子简单查询、子关联查询乱序关联：逗号 + where 语句
+  oracle_sql: >
+    select * from (select * from tableC c, tableD d on c.id(+) = d.id where c.name = ?) c,
+    tableA a,
+    (select * from tableB b where b.name = ?) b
+    where c.id = a.id(+) and a.id = b.id and c.id = ?
+  tidb_sql: >
+    select * from tableA a 
+    join ( select * from tableB b where b.name = ? ) b on a.id = b.id 
+    right join ( select * from tableC c right join tableD d on d.id = c.id where c.name = ? ) c on c.id = a.id 
+    where c.id = ?

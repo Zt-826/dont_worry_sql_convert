@@ -1,0 +1,7 @@
+select * from tableA a join tableB b on a.id = b.id
+left join tableC c on c.id = a.id
+right join tableD d on d.id = b.id
+where a.name = ? and b.name = ''
+    
+select * from tableA a join (select * from tableB b where b.name = ?) b on a.id = b.id
+    where a.name  = ? and b.name = ''
