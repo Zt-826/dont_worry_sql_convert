@@ -14,6 +14,7 @@ import com.alibaba.druid.sql.dialect.odps.ast.OdpsNewExpr;
 import com.alibaba.druid.sql.dialect.oracle.ast.OracleSegmentAttributes;
 import com.alibaba.druid.sql.dialect.oracle.ast.expr.OracleCursorExpr;
 import com.alibaba.druid.sql.dialect.oracle.ast.expr.OracleDatetimeExpr;
+import com.alibaba.druid.sql.dialect.oracle.ast.expr.OracleSysdateExpr;
 import com.alibaba.druid.sql.dialect.oracle.ast.stmt.OracleCreatePackageStatement;
 import com.alibaba.druid.sql.dialect.oracle.ast.stmt.OracleForStatement;
 import com.alibaba.druid.sql.dialect.oracle.parser.OracleFunctionDataType;
@@ -1136,7 +1137,18 @@ public class SQLASTOutputVisitor extends SQLASTVisitorAdapter implements Paramet
     protected final void printExpr(SQLExpr x, boolean parameterized) {
         Class<?> clazz = x.getClass();
         if (clazz == SQLIdentifierExpr.class) {
-            visit((SQLIdentifierExpr) x);
+            SQLIdentifierExpr identifierExpr = (SQLIdentifierExpr) x;
+            if (identifierExpr.getName().equalsIgnoreCase("SYSTIMESTAMP")) {
+                SQLObject parent = x.getParent();
+                if (parent instanceof SQLSelectItem) {
+                    SQLMethodInvokeExpr expr = new SQLMethodInvokeExpr("CURRENT_TIMESTAMP");
+                    expr.getArguments().add(new SQLIdentifierExpr("6"));
+                    ((SQLSelectItem) parent).setExpr(expr);
+                    printExpr(expr, parameterized);
+                }
+            } else {
+                visit(identifierExpr);
+            }
         } else if (clazz == SQLPropertyExpr.class) {
             visit((SQLPropertyExpr) x);
         } else if (clazz == SQLAllColumnExpr.class) {
@@ -1144,7 +1156,18 @@ public class SQLASTOutputVisitor extends SQLASTVisitorAdapter implements Paramet
         } else if (clazz == SQLAggregateExpr.class) {
             visit((SQLAggregateExpr) x);
         } else if (clazz == SQLBinaryOpExpr.class) {
-            visit((SQLBinaryOpExpr) x);
+            if (((SQLBinaryOpExpr) x).getOperator().equals(SQLBinaryOperator.Concat)) {
+                SQLObject parent = x.getParent();
+                if (parent instanceof SQLSelectItem) {
+                    SQLMethodInvokeExpr expr = new SQLMethodInvokeExpr("CONCAT");
+                    expr.getArguments().add(((SQLBinaryOpExpr) x).getLeft());
+                    expr.getArguments().add(((SQLBinaryOpExpr) x).getRight());
+                    ((SQLSelectItem) parent).setExpr(expr);
+                    printExpr(expr, parameterized);
+                }
+            } else {
+                visit((SQLBinaryOpExpr) x);
+            }
         } else if (clazz == SQLCharExpr.class) {
             visit((SQLCharExpr) x, parameterized);
         } else if (clazz == SQLNullExpr.class) {
@@ -1165,6 +1188,13 @@ public class SQLASTOutputVisitor extends SQLASTVisitorAdapter implements Paramet
             visit((SQLInListExpr) x);
         } else if (clazz == SQLNotExpr.class) {
             visit((SQLNotExpr) x);
+        } else if (clazz == OracleSysdateExpr.class) {
+            SQLObject parent = x.getParent();
+            if (parent instanceof SQLSelectItem) {
+                SQLMethodInvokeExpr expr = new SQLMethodInvokeExpr("NOW");
+                ((SQLSelectItem) parent).setExpr(expr);
+                printExpr(expr, parameterized);
+            }
         } else {
             x.accept(this);
         }
@@ -1838,18 +1868,81 @@ public class SQLASTOutputVisitor extends SQLASTVisitorAdapter implements Paramet
 
         // 处理To_Char
         if (function.equalsIgnoreCase("To_Char")) {
-            x.setMethodName("DATE_FORMAT");
-            if (((SQLCharExpr) x.getArguments().get(1)).getText().equals("yyyy-mm-dd")) {
-                x.setArgument(1, new SQLCharExpr("%Y-%m-%d"));
+            if (x.getArguments().size() == 1) {
+                x.setMethodName("CONVERT");
+                x.getArguments().add(new SQLIdentifierExpr("CHAR"));
+            } else {
+                x.setMethodName("DATE_FORMAT");
+                if (x.getArguments().get(0).getClass().equals(OracleSysdateExpr.class)) {
+                    x.setArgument(0, new SQLMethodInvokeExpr("NOW"));
+                }
+                if (((SQLCharExpr) x.getArguments().get(1)).getText().equals("yyyy-MM-dd")) {
+                    x.setArgument(1, new SQLCharExpr("%Y-%m-%d"));
+                }
+                if (((SQLCharExpr) x.getArguments().get(1)).getText().equals("yyyy-MM-dd hh24:mi:ss")) {
+                    x.setArgument(1, new SQLCharExpr("%Y-%m-%d %H:%i:%s"));
+                }
+                // 其他日期格式暂不支持
             }
         }
 
         // 处理To_Date
         if (function.equalsIgnoreCase("To_Date")) {
             x.setMethodName("STR_TO_DATE");
-            if (((SQLCharExpr) x.getArguments().get(1)).getText().equals("yyyy-mm-dd")) {
+            if (((SQLCharExpr) x.getArguments().get(1)).getText().equals("yyyy-MM-dd")) {
                 x.setArgument(1, new SQLCharExpr("%Y-%m-%d"));
             }
+            if (((SQLCharExpr) x.getArguments().get(1)).getText().equals("yyyy-MM-dd hh24:mi:ss")) {
+                x.setArgument(1, new SQLCharExpr("%Y-%m-%d %H:%i:%s"));
+            }
+            // 其他日期格式暂不支持
+        }
+
+        // 处理TRUNC
+        if (function.equalsIgnoreCase("TRUNC")) {
+            if (x.getArguments().get(0) instanceof SQLMethodInvokeExpr || x.getArguments().get(0) instanceof OracleSysdateExpr) {
+                x.setMethodName("DATE_FORMAT");
+                // 暂时只处理这种情况
+                if (x.getArguments().size() == 1) {
+                    x.setArgument(0, new SQLMethodInvokeExpr("NOW"));
+                    x.getArguments().add(new SQLCharExpr("%Y-%m-%d"));
+                }
+            } else {
+                x.setMethodName("TRUNCATE");
+                if (x.getArguments().size() == 1) {
+                    x.getArguments().add(new SQLIdentifierExpr("0"));
+                }
+            }
+        }
+
+        // 处理NVL
+        if (function.equalsIgnoreCase("NVL")) {
+            x.setMethodName("IFNULL");
+        }
+
+        // 处理NVL2
+        if (function.equalsIgnoreCase("NVL2")) {
+            x.setMethodName("IF");
+            SQLBinaryOpExpr condition = new SQLBinaryOpExpr();
+            condition.setLeft(x.getArguments().get(0));
+            condition.setOperator(SQLBinaryOperator.IsNot);
+            condition.setRight(new SQLNullExpr());
+            x.setArgument(0, condition);
+        }
+
+        // 处理LENGTH
+        if (function.equalsIgnoreCase("LENGTH")) {
+            x.setMethodName("CHAR_LENGTH");
+        }
+
+        // 处理SUBSTR
+        if (function.equalsIgnoreCase("SUBSTR")) {
+            x.setMethodName("SUBSTRING");
+        }
+
+        // 处理CHA
+        if (function.equalsIgnoreCase("CHR")) {
+            x.setMethodName("CHAR");
         }
 
         printFunctionName(x.getMethodName());

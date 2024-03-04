@@ -142,7 +142,7 @@ public class OracleToTiDBOutputVisitor extends OracleOutputVisitor {
     // 处理(+)
     public void preVisit(SQLObject x) {
         if (x instanceof OracleSelectQueryBlock) {
-            // 处理from是OracleSelectJoin的情况
+            // 处理Oracle中的(+)写法，即from是OracleSelectJoin的情况
             if (((OracleSelectQueryBlock) x).getFrom() instanceof OracleSelectJoin) {
                 OracleSelectQueryBlock oracleSelectQueryBlock = (OracleSelectQueryBlock) x;
                 SQLBinaryOpExpr where = (SQLBinaryOpExpr) oracleSelectQueryBlock.getWhere();
@@ -513,7 +513,7 @@ public class OracleToTiDBOutputVisitor extends OracleOutputVisitor {
                     SQLTableSource rightTable = ((OracleSelectJoin) parent).getRight();
                     String leftTableName = "";
                     String leftTableAlise = "";
-                    String rightTableName ="";
+                    String rightTableName = "";
                     String rightTableAlias = rightTable.getAlias();
                     if (rightTable instanceof OracleSelectTableReference) {
                         rightTableName = ((SQLIdentifierExpr) ((OracleSelectTableReference) rightTable).getExpr()).getName();

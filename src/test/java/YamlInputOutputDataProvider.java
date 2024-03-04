@@ -9,9 +9,17 @@ import java.util.stream.Stream;
 import static org.junit.jupiter.params.provider.Arguments.arguments;
 
 public class YamlInputOutputDataProvider {
-    public static Stream<Arguments> provideInputOutputPairs() throws IOException {
-        InputStream inputStream = YamlInputOutputDataProvider.class.getResourceAsStream("/sql_cases.yaml");
+    public static Stream<Arguments> provideFunctionSqlPairs() {
+        InputStream inputStream = YamlInputOutputDataProvider.class.getResourceAsStream("/function_sql_cases.yaml");
+        return getArgumentsStream(inputStream);
+    }
 
+    public static Stream<Arguments> provideSyntaxSqlPairs() {
+        InputStream inputStream = YamlInputOutputDataProvider.class.getResourceAsStream("/syntax_sql_cases.yaml");
+        return getArgumentsStream(inputStream);
+    }
+
+    private static Stream<Arguments> getArgumentsStream(InputStream inputStream) {
         Yaml yaml = new Yaml();
         List<Arguments> argumentsList = new ArrayList<>();
         for (Object o : yaml.loadAll(inputStream)) {
@@ -22,4 +30,5 @@ public class YamlInputOutputDataProvider {
         }
         return argumentsList.stream();
     }
+
 }

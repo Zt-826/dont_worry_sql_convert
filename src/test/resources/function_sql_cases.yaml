@@ -1,0 +1,95 @@
+- comment: TO_CHAR 数字转字符串
+  oracle_sql: >
+    select TO_CHAR(-1234567890.0123456789) from tableA a
+  tidb_sql: >
+    select CONVERT(-1234567890.0123456789, CHAR) from tableA a
+
+- comment: TO_CHAR 日期转字符串 (年月日)
+  oracle_sql: >
+    select TO_CHAR(SYSDATE, 'yyyy-MM-dd') from tableA a
+  tidb_sql: >
+    select DATE_FORMAT(NOW(), '%Y-%m-%d') from tableA a
+
+- comment: TO_CHAR 日期转字符串 (年月日 时分秒)
+  oracle_sql: >
+    select TO_CHAR(SYSDATE, 'yyyy-MM-dd hh24:mi:ss') from tableA a
+  tidb_sql: >
+    select DATE_FORMAT(NOW(), '%Y-%m-%d %H:%i:%s') from tableA a
+
+- comment: TO_DATE 字符串转日期 (年月日)
+  oracle_sql: >
+    select TO_DATE('2024-02-29','yyyy-MM-dd') from tableA a
+  tidb_sql: >
+    select STR_TO_DATE('2024-02-29', '%Y-%m-%d') from tableA a
+
+- comment: TO_DATE 字符串转日期 (年月日 时分秒)
+  oracle_sql: >
+    select TO_DATE('2024-02-29 17:31:37','yyyy-MM-dd hh24:mi:ss') from tableA a
+  tidb_sql: >
+    select STR_TO_DATE('2024-02-29 17:31:37', '%Y-%m-%d %H:%i:%s') from tableA a
+
+- comment: 获取系统当前时间 (精确到秒)
+  oracle_sql: >
+    select SYSDATE from tableA a
+  tidb_sql: >
+    select NOW() from tableA a
+
+- comment: 获取系统当前时间 (精确到微秒)
+  oracle_sql: >
+    select SYSTIMESTAMP from tableA a
+  tidb_sql: >
+    select CURRENT_TIMESTAMP(6) from tableA a
+
+- comment: TRUNC 获取日期到日
+  oracle_sql: >
+    select TRUNC(SYSDATE) from tableA a
+  tidb_sql: >
+    select DATE_FORMAT(NOW(), '%Y-%m-%d') from tableA a
+
+- comment: TRUNC 截取数据
+  oracle_sql: >
+    select TRUNC(2.136) from tableA a
+  tidb_sql: >
+    select TRUNCATE(2.136, 0) from tableA a
+
+- comment: TRUNC 截取数据，保留小数点后两位
+  oracle_sql: >
+    select TRUNC(2.136, 2) from tableA a
+  tidb_sql: >
+    select TRUNCATE(2.136, 2) from tableA a
+
+- comment: NVL 判断空值
+  oracle_sql: >
+    select NVL(a.name, 'val') from tableA a
+  tidb_sql: >
+    select IFNULL(a.name, 'val') from tableA a
+
+- comment: NVL2() 判断空值
+  oracle_sql: >
+    select NVL2(a.name, val1, val2) from tableA a
+  tidb_sql: >
+    select IF(a.name is NOT NULL, val1, val2) from tableA a
+
+- comment: 拼接字符串
+  oracle_sql: >
+    select 'a' || 'b' from tableA a
+  tidb_sql: >
+    select CONCAT('a', 'b') from tableA a
+
+- comment: 获取字符串长度
+  oracle_sql: >
+    select LENGTH('a') from tableA a
+  tidb_sql: >
+    select CHAR_LENGTH('a') from tableA a
+
+- comment: 获取子串
+  oracle_sql: >
+    select SUBSTR('abc',0,2) from tableA a
+  tidb_sql: >
+    select SUBSTRING('abc', 0, 2) from tableA a
+
+- comment: ASCII 值转化为对应字符
+  oracle_sql: >
+    select CHR(97) from tableA a
+  tidb_sql: >
+    select CHAR(97) from tableA a
