@@ -28,6 +28,22 @@
   tidb_sql: >
     select STR_TO_DATE('2024-02-29 17:31:37', '%Y-%m-%d %H:%i:%s') from tableA a
 
+- comment: TO_DATE TO_CHAR 嵌套
+  oracle_sql: >
+    select * from tableA a where to_date(to_char(a.date, 'yyyy-MM-dd'), 'yyyy-MM-dd') <= to_date(to_char(SYSDATE, 'yyyy-MM-dd'), 'yyyy-MM-dd')
+  tidb_sql: >
+    SELECT *
+    FROM tableA a
+    WHERE STR_TO_DATE(DATE_FORMAT(a.date, '%Y-%m-%d'), '%Y-%m-%d') <= STR_TO_DATE(DATE_FORMAT(NOW(), '%Y-%m-%d'), '%Y-%m-%d')
+#
+- comment: TO_CHAR TO_DATE 嵌套
+  oracle_sql: >
+    select * from tableA a where to_char(to_date(a.date, 'yyyy-MM-dd'), 'yyyy-MM-dd') <= to_char(to_date(SYSDATE, 'yyyy-MM-dd'), 'yyyy-MM-dd')
+  tidb_sql: >
+    SELECT *
+    FROM tableA a
+    WHERE DATE_FORMAT(STR_TO_DATE(a.date, '%Y-%m-%d'), '%Y-%m-%d') <= DATE_FORMAT(STR_TO_DATE(NOW(), '%Y-%m-%d'), '%Y-%m-%d')
+
 - comment: 获取系统当前时间 (精确到秒)
   oracle_sql: >
     select SYSDATE from tableA a
@@ -93,3 +109,53 @@
     select CHR(97) from tableA a
   tidb_sql: >
     select CHAR(97) from tableA a
+
+- comment: decode函数
+  oracle_sql: >
+    select
+      Decode(a.flag,
+          '1'         ,'特约-' || a.name,
+            e.age) Code
+    from
+      tableA a
+  tidb_sql: >
+    SELECT CASE a.flag
+    		WHEN '1' THEN CONCAT('特约-', a.name)
+    		ELSE e.age
+    	END AS Code
+    FROM tableA a
+
+- comment: decode函数嵌套
+  oracle_sql: >
+    select
+      decode(a.period    ,
+          'P'               ,decode(a.kind,
+              'P'           ,0,
+                'E'         ,0,
+                  'C'       ,0,1),
+            decode(a.kind,
+                'I'         , 0,
+                  1))
+    from
+      table a
+  tidb_sql: >
+    SELECT CASE a.period
+    		WHEN 'P' THEN CASE a.kind
+    				WHEN 'P' THEN 0
+    				WHEN 'E' THEN 0
+    				WHEN 'C' THEN 0
+    				ELSE 1
+    			END
+    		ELSE CASE a.kind
+    			WHEN 'I' THEN 0
+    			ELSE 1
+    		END
+    	END
+    FROM TABLE a
+
+- comment: cast函数
+  oracle_sql: >
+    select cast(regexp_substr(a.versionNo, '[0-9]+') as int) from tableA a
+  tidb_sql: >
+    select cast(regexp_substr(a.versionNo, '[0-9]+') as SIGNED INTEGER) from tableA a
+    

@@ -18,6 +18,10 @@ public class YamlInputOutputDataProvider {
         InputStream inputStream = YamlInputOutputDataProvider.class.getResourceAsStream("/syntax_sql_cases.yaml");
         return getArgumentsStream(inputStream);
     }
+    public static Stream<Arguments> provideComplexSqlPairs() {
+        InputStream inputStream = YamlInputOutputDataProvider.class.getResourceAsStream("/complex_sql_cases.yaml");
+        return getArgumentsStream(inputStream);
+    }
 
     private static Stream<Arguments> getArgumentsStream(InputStream inputStream) {
         Yaml yaml = new Yaml();

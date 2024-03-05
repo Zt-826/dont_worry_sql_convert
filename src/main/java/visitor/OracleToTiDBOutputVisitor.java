@@ -181,8 +181,8 @@ public class OracleToTiDBOutputVisitor extends OracleOutputVisitor {
                             continue;
                         }
 
-                        String preName = tableRelation.getPreTableNameAndAlias();
-                        String postName = tableRelation.getPostTableNameAndAlias();
+                        String preName = tableRelation.getPreTableNameAndAlias().toLowerCase();
+                        String postName = tableRelation.getPostTableNameAndAlias().toLowerCase();
                         if (!sortedTableNames.contains(preName)) {
                             sortedTableNames.add(preName);
                             sortedTableSources.add(tableSourceMap.get(preName));
@@ -256,15 +256,15 @@ public class OracleToTiDBOutputVisitor extends OracleOutputVisitor {
             if (left instanceof OracleSelectTableReference) {
                 String alias = left.getAlias();
                 if (StringUtils.isEmpty(alias)) {
-                    joinedTable.add(((OracleSelectTableReference) left).getTableName() + " ");
+                    joinedTable.add((((OracleSelectTableReference) left).getTableName() + " ").toLowerCase());
                 } else {
-                    joinedTable.add(((OracleSelectTableReference) left).getTableName() + " " + alias);
+                    joinedTable.add((((OracleSelectTableReference) left).getTableName() + " " + alias).toLowerCase());
                 }
             }
 
             // 处理左表，左表为子查询的情况
             if (left instanceof OracleSelectSubqueryTableSource) {
-                joinedTable.add(getSubqueryTableName() + " " + left.getAlias());
+                joinedTable.add((getSubqueryTableName() + " " + left.getAlias()).toLowerCase());
                 preVisit(((OracleSelectSubqueryTableSource) left).getSelect().getQuery());
             }
 
@@ -278,9 +278,9 @@ public class OracleToTiDBOutputVisitor extends OracleOutputVisitor {
             if (right instanceof OracleSelectTableReference) {
                 String alias = right.getAlias();
                 if (StringUtils.isEmpty(alias)) {
-                    joinedTable.add(((OracleSelectTableReference) right).getTableName() + " ");
+                    joinedTable.add((((OracleSelectTableReference) right).getTableName() + " ").toLowerCase());
                 } else {
-                    joinedTable.add(((OracleSelectTableReference) right).getTableName() + " " + alias);
+                    joinedTable.add((((OracleSelectTableReference) right).getTableName() + " " + alias).toLowerCase());
                 }
             }
             // 如果右表为OracleSelectJoin
@@ -289,7 +289,7 @@ public class OracleToTiDBOutputVisitor extends OracleOutputVisitor {
             }
             // 如果右表为子查询
             if (right instanceof OracleSelectSubqueryTableSource) {
-                joinedTable.add(getSubqueryTableName() + " " + right.getAlias());
+                joinedTable.add((getSubqueryTableName() + " " + right.getAlias()).toLowerCase());
                 preVisit(((OracleSelectSubqueryTableSource) right).getSelect().getQuery());
             }
 
@@ -300,13 +300,13 @@ public class OracleToTiDBOutputVisitor extends OracleOutputVisitor {
 
     private static String getSubqueryTableName() {
         // 加一个前缀，尽量将子查询置后
-        return "~" + OracleSelectSubqueryTableSource.class.getSimpleName();
+        return ("~" + OracleSelectSubqueryTableSource.class.getSimpleName()).toLowerCase();
     }
 
     private void getTableSources(SQLTableSource sqlTableSource, Map<String, String> aliasNameMap, Map<String, SQLTableSource> tableSourceMap) {
         if (sqlTableSource instanceof OracleSelectTableReference) {
-            String alias = sqlTableSource.getAlias();
-            String tableName = ((OracleSelectTableReference) sqlTableSource).getTableName();
+            String alias = sqlTableSource.getAlias().toLowerCase();
+            String tableName = ((OracleSelectTableReference) sqlTableSource).getTableName().toLowerCase();
             if (!StringUtils.isEmpty(alias)) {
                 aliasNameMap.put(alias, tableName);
                 tableSourceMap.put(tableName + " " + alias, sqlTableSource);
@@ -315,7 +315,7 @@ public class OracleToTiDBOutputVisitor extends OracleOutputVisitor {
             }
         }
         if (sqlTableSource instanceof OracleSelectSubqueryTableSource) {
-            String alias = sqlTableSource.getAlias();
+            String alias = sqlTableSource.getAlias().toLowerCase();
             aliasNameMap.put(alias, getSubqueryTableName());
             tableSourceMap.put(getSubqueryTableName() + " " + alias, sqlTableSource);
         }
@@ -339,10 +339,11 @@ public class OracleToTiDBOutputVisitor extends OracleOutputVisitor {
                 continue;
             }
 
-            if (joinedTable.contains(tableRelation.getPreTableNameAndAlias()) && joinedTable.contains(tableRelation.getPostTableNameAndAlias())) {
+            if (joinedTable.contains(tableRelation.getPreTableNameAndAlias().toLowerCase()) && joinedTable.contains(tableRelation.getPostTableNameAndAlias().toLowerCase())) {
                 // 说明是外连接
                 if (tableRelation.getOuterRelation() != null) {
                     if (tableRelation.getOuterRelationType() == null) {
+                        // 说明是使用(+)进行连接的
                         SQLBinaryOpExpr outerRelation = tableRelation.getOuterRelation();
                         // 这里的(+)都在右侧，因为之前被转换了
                         String leftName = ((SQLIdentifierExpr) ((SQLPropertyExpr) outerRelation.getLeft()).getOwner()).getName();
@@ -516,18 +517,18 @@ public class OracleToTiDBOutputVisitor extends OracleOutputVisitor {
                     String rightTableName = "";
                     String rightTableAlias = rightTable.getAlias();
                     if (rightTable instanceof OracleSelectTableReference) {
-                        rightTableName = ((SQLIdentifierExpr) ((OracleSelectTableReference) rightTable).getExpr()).getName();
+                        rightTableName = ((SQLIdentifierExpr) ((OracleSelectTableReference) rightTable).getExpr()).getName().toLowerCase();
                     }
                     if (rightTable instanceof OracleSelectSubqueryTableSource) {
                         rightTableName = getSubqueryTableName();
                     }
 
-                    String preTableName = tableRelation.getPreTable().getTableName();
-                    String preAlias = tableRelation.getPreTable().getAlias();
-                    String postTableName = tableRelation.getPostTable().getTableName();
-                    String postAlias = tableRelation.getPostTable().getAlias();
+                    String preTableName = tableRelation.getPreTable().getTableName().toLowerCase();
+                    String preAlias = tableRelation.getPreTable().getAlias().toLowerCase();
+                    String postTableName = tableRelation.getPostTable().getTableName().toLowerCase();
+                    String postAlias = tableRelation.getPostTable().getAlias().toLowerCase();
 
-                    if (rightTableName.equals(preTableName)) {
+                    if (rightTableName.equalsIgnoreCase(preTableName)) {
                         leftTableName = postTableName;
                         leftTableAlise = postAlias;
                     } else {
@@ -565,19 +566,19 @@ public class OracleToTiDBOutputVisitor extends OracleOutputVisitor {
         String rightTableName = "";
         String rightAlias = "";
 
-        if (aliasNameMap.containsKey(leftName)) {
+        if (aliasNameMap.containsKey(leftName.toLowerCase())) {
             // 说明leftName是别名
             leftAlias = leftName;
-            leftTableName = aliasNameMap.get(leftName);
+            leftTableName = aliasNameMap.get(leftName.toLowerCase());
         } else {
             // 说明leftName是表名，别名为空
             leftTableName = leftName;
         }
 
-        if (aliasNameMap.containsKey(rightName)) {
+        if (aliasNameMap.containsKey(rightName.toLowerCase())) {
             // 说明rightName是别名
             rightAlias = rightName;
-            rightTableName = aliasNameMap.get(rightName);
+            rightTableName = aliasNameMap.get(rightName.toLowerCase());
         } else {
             // 说明rightName是表名，别名为空
             rightTableName = rightName;

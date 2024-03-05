@@ -1139,13 +1139,9 @@ public class SQLASTOutputVisitor extends SQLASTVisitorAdapter implements Paramet
         if (clazz == SQLIdentifierExpr.class) {
             SQLIdentifierExpr identifierExpr = (SQLIdentifierExpr) x;
             if (identifierExpr.getName().equalsIgnoreCase("SYSTIMESTAMP")) {
-                SQLObject parent = x.getParent();
-                if (parent instanceof SQLSelectItem) {
-                    SQLMethodInvokeExpr expr = new SQLMethodInvokeExpr("CURRENT_TIMESTAMP");
-                    expr.getArguments().add(new SQLIdentifierExpr("6"));
-                    ((SQLSelectItem) parent).setExpr(expr);
-                    printExpr(expr, parameterized);
-                }
+                SQLMethodInvokeExpr expr = new SQLMethodInvokeExpr("CURRENT_TIMESTAMP");
+                expr.getArguments().add(new SQLIdentifierExpr("6"));
+                printExpr(expr, parameterized);
             } else {
                 visit(identifierExpr);
             }
@@ -1157,14 +1153,10 @@ public class SQLASTOutputVisitor extends SQLASTVisitorAdapter implements Paramet
             visit((SQLAggregateExpr) x);
         } else if (clazz == SQLBinaryOpExpr.class) {
             if (((SQLBinaryOpExpr) x).getOperator().equals(SQLBinaryOperator.Concat)) {
-                SQLObject parent = x.getParent();
-                if (parent instanceof SQLSelectItem) {
                     SQLMethodInvokeExpr expr = new SQLMethodInvokeExpr("CONCAT");
                     expr.getArguments().add(((SQLBinaryOpExpr) x).getLeft());
                     expr.getArguments().add(((SQLBinaryOpExpr) x).getRight());
-                    ((SQLSelectItem) parent).setExpr(expr);
                     printExpr(expr, parameterized);
-                }
             } else {
                 visit((SQLBinaryOpExpr) x);
             }
@@ -1189,12 +1181,8 @@ public class SQLASTOutputVisitor extends SQLASTVisitorAdapter implements Paramet
         } else if (clazz == SQLNotExpr.class) {
             visit((SQLNotExpr) x);
         } else if (clazz == OracleSysdateExpr.class) {
-            SQLObject parent = x.getParent();
-            if (parent instanceof SQLSelectItem) {
-                SQLMethodInvokeExpr expr = new SQLMethodInvokeExpr("NOW");
-                ((SQLSelectItem) parent).setExpr(expr);
-                printExpr(expr, parameterized);
-            }
+            SQLMethodInvokeExpr expr = new SQLMethodInvokeExpr("NOW");
+            printExpr(expr, parameterized);
         } else {
             x.accept(this);
         }
@@ -1362,6 +1350,13 @@ public class SQLASTOutputVisitor extends SQLASTVisitorAdapter implements Paramet
     }
 
     public boolean visit(SQLDataType x) {
+        // 适配cast方法中的int
+        if (x.getParent() instanceof SQLCastExpr) {
+            if (x.getName().equalsIgnoreCase("int")) {
+                x.setName("SIGNED INTEGER");
+            }
+        }
+
         printDataType(x);
 
         return false;
@@ -1862,7 +1857,7 @@ public class SQLASTOutputVisitor extends SQLASTVisitorAdapter implements Paramet
         // 处理decode
         if (function.equalsIgnoreCase("decode")) {
             SQLCaseExpr sqlCaseExpr = SQLMethodInvokeExpr2CaseExpr(x);
-            printExpr(sqlCaseExpr);
+            visit(sqlCaseExpr);
             return false;
         }
 
@@ -1876,10 +1871,10 @@ public class SQLASTOutputVisitor extends SQLASTVisitorAdapter implements Paramet
                 if (x.getArguments().get(0).getClass().equals(OracleSysdateExpr.class)) {
                     x.setArgument(0, new SQLMethodInvokeExpr("NOW"));
                 }
-                if (((SQLCharExpr) x.getArguments().get(1)).getText().equals("yyyy-MM-dd")) {
+                if (((SQLCharExpr) x.getArguments().get(1)).getText().equalsIgnoreCase("yyyy-MM-dd")) {
                     x.setArgument(1, new SQLCharExpr("%Y-%m-%d"));
                 }
-                if (((SQLCharExpr) x.getArguments().get(1)).getText().equals("yyyy-MM-dd hh24:mi:ss")) {
+                if (((SQLCharExpr) x.getArguments().get(1)).getText().equalsIgnoreCase("yyyy-MM-dd hh24:mi:ss")) {
                     x.setArgument(1, new SQLCharExpr("%Y-%m-%d %H:%i:%s"));
                 }
                 // 其他日期格式暂不支持
@@ -1889,10 +1884,10 @@ public class SQLASTOutputVisitor extends SQLASTVisitorAdapter implements Paramet
         // 处理To_Date
         if (function.equalsIgnoreCase("To_Date")) {
             x.setMethodName("STR_TO_DATE");
-            if (((SQLCharExpr) x.getArguments().get(1)).getText().equals("yyyy-MM-dd")) {
+            if (((SQLCharExpr) x.getArguments().get(1)).getText().equalsIgnoreCase("yyyy-MM-dd")) {
                 x.setArgument(1, new SQLCharExpr("%Y-%m-%d"));
             }
-            if (((SQLCharExpr) x.getArguments().get(1)).getText().equals("yyyy-MM-dd hh24:mi:ss")) {
+            if (((SQLCharExpr) x.getArguments().get(1)).getText().equalsIgnoreCase("yyyy-MM-dd hh24:mi:ss")) {
                 x.setArgument(1, new SQLCharExpr("%Y-%m-%d %H:%i:%s"));
             }
             // 其他日期格式暂不支持
@@ -1943,6 +1938,11 @@ public class SQLASTOutputVisitor extends SQLASTVisitorAdapter implements Paramet
         // 处理CHA
         if (function.equalsIgnoreCase("CHR")) {
             x.setMethodName("CHAR");
+        }
+
+        // 处理cast
+        if (function.equalsIgnoreCase("CAST")) {
+            x.getArguments().set(0, new SQLIdentifierExpr("0"));
         }
 
         printFunctionName(x.getMethodName());
