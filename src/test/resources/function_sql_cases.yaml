@@ -35,7 +35,7 @@
     SELECT *
     FROM tableA a
     WHERE STR_TO_DATE(DATE_FORMAT(a.date, '%Y-%m-%d'), '%Y-%m-%d') <= STR_TO_DATE(DATE_FORMAT(NOW(), '%Y-%m-%d'), '%Y-%m-%d')
-#
+
 - comment: TO_CHAR TO_DATE 嵌套
   oracle_sql: >
     select * from tableA a where to_char(to_date(a.date, 'yyyy-MM-dd'), 'yyyy-MM-dd') <= to_char(to_date(SYSDATE, 'yyyy-MM-dd'), 'yyyy-MM-dd')
