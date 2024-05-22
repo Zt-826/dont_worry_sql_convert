@@ -224,3 +224,27 @@
     left join
     ( select * from ( select distinct no, name from tableC ) c join tabled d on c.no = d.no ) e on a.id = e.id
     and a.name = e.name
+
+- comment: 外连接以及括号包含的子条件1
+  oracle_sql: >
+    select * from tableA a, tableB b where a.id = b.id(+) and a.name = 0 and (a.name = 1 or b.code = 1 or b.code = 2)
+  tidb_sql: >
+    select * from tableA a left join tableB b on a.id = b.id where a.name = 0 and (a.name = 1 or b.code = 1 or b.code = 2)
+
+- comment: 外连接以及括号包含的子条件2
+  oracle_sql: >
+    select * from tableA a, tableB b where a.id = b.id(+) and (a.name = 1 or b.code = 1) or b.code = 2
+  tidb_sql: >
+    select * from tableA a left join tableB b on a.id = b.id where a.name = 1 or b.code = 1 or b.code = 2
+
+- comment: 外连接以及括号包含的子条件3
+  oracle_sql: >
+    select * from tableA a, tableB b where a.id = b.id(+) and a.name = 1 or (b.code = 1 or b.code = 2)
+  tidb_sql: >
+    select * from tableA a left join tableB b on a.id = b.id where a.name = 1 or (b.code = 1 or b.code = 2)
+
+- comment: 外连接并存在 a.column(+) = 1 这种条件
+  oracle_sql: >
+    select * from tableA a, tableB b where a.id = b.id(+) and b.name is not null and a.name(+) = 1
+  tidb_sql: >
+    select * from tableA a left join tableB b on a.id = b.id where b.name is not null and (a.name = 1 or a.name is null)

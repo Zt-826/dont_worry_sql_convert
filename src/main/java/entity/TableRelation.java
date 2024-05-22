@@ -1,7 +1,10 @@
 package entity;
 
+import com.alibaba.druid.sql.ast.SQLExpr;
 import com.alibaba.druid.sql.ast.expr.SQLBinaryOpExpr;
 import com.alibaba.druid.sql.ast.statement.SQLJoinTableSource;
+
+import java.util.Objects;
 
 public class TableRelation implements Comparable<TableRelation> {
     /**
@@ -31,6 +34,8 @@ public class TableRelation implements Comparable<TableRelation> {
     private SQLBinaryOpExpr innerRelation;
 
     private SQLBinaryOpExpr commonRelation;
+
+    private SQLExpr sqlExpr;
 
     public TableRelation(String leftName, String leftAlias, String rightName, String rightAlias) {
         // 根据入参的字典序决定preTable和postTable，字典序小的是preTable，字典序大的是postTable
@@ -121,6 +126,14 @@ public class TableRelation implements Comparable<TableRelation> {
         this.outerRelationType = outerRelationType;
     }
 
+    public SQLExpr getSqlExpr() {
+        return sqlExpr;
+    }
+
+    public void setSqlExpr(SQLExpr sqlExpr) {
+        this.sqlExpr = sqlExpr;
+    }
+
     @Override
     public int compareTo(TableRelation o) {
         // 先根据的preTable比大小，再根据postTable比大小
@@ -129,5 +142,18 @@ public class TableRelation implements Comparable<TableRelation> {
         } else {
             return preTable.compareTo(o.getPreTable());
         }
+    }
+
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+        TableRelation that = (TableRelation) o;
+        return Objects.equals(preTable, that.preTable) && Objects.equals(postTable, that.postTable) && Objects.equals(leftTable, that.leftTable) && Objects.equals(rightTable, that.rightTable) && Objects.equals(outerRelation, that.outerRelation) && outerRelationType == that.outerRelationType && Objects.equals(innerRelation, that.innerRelation) && Objects.equals(commonRelation, that.commonRelation) && Objects.equals(sqlExpr, that.sqlExpr);
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(preTable, postTable, leftTable, rightTable, outerRelation, outerRelationType, innerRelation, commonRelation, sqlExpr);
     }
 }
