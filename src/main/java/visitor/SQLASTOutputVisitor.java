@@ -1828,6 +1828,7 @@ public class SQLASTOutputVisitor extends SQLASTVisitorAdapter implements Paramet
     }
 
     public boolean visit(SQLMethodInvokeExpr x) {
+        // 函数适配
         SQLExpr owner = x.getOwner();
         if (owner != null) {
             printMethodOwner(owner);
@@ -2106,6 +2107,18 @@ public class SQLASTOutputVisitor extends SQLASTVisitorAdapter implements Paramet
         }
 
         String methodName = x.getMethodName();
+
+        // 处理listagg(...) within group (order by ...)
+        if(methodName.equalsIgnoreCase("listagg")) {
+            SQLExpr sqlExpr0 = x.getArguments().get(0);
+            SQLExpr sqlExpr1 = x.getArguments().get(1);
+            SQLMethodInvokeExpr sqlMethodInvokeExpr = new SQLMethodInvokeExpr("GROUP_CONCAT");
+            SQLIdentifierExpr orderBy = new SQLIdentifierExpr(new SQLOrderBy(sqlExpr0).toString());
+            sqlMethodInvokeExpr.addArgument(new SQLIdentifierExpr(sqlExpr0.toString() + " " + orderBy + " SEPARATOR " + sqlExpr1));
+            printExpr(sqlMethodInvokeExpr);
+            return false;
+        }
+
         print0(ucase ? methodName : methodName.toLowerCase());
         print('(');
 

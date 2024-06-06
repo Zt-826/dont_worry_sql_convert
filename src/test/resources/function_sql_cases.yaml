@@ -158,4 +158,10 @@
     select cast(regexp_substr(a.versionNo, '[0-9]+') as int) from tableA a
   tidb_sql: >
     select cast(regexp_substr(a.versionNo, '[0-9]+') as SIGNED INTEGER) from tableA a
-    
+
+
+- comment: listagg(...) within group (order by ...)
+  oracle_sql: >
+    select listagg(F.riskcode,',') within group (order by riskcode) AS risk_code FROM fdrisk f where F.riskcode  in ('23020020','23020019');
+  tidb_sql: >
+    select group_concat(f.riskcode order by f.riskcode separator ',') as risk_code from fdrisk f where f.riskcode in ('23020020', '23020019');
