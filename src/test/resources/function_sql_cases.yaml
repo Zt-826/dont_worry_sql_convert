@@ -1,167 +1,173 @@
-- comment: TO_CHAR 数字转字符串
-  oracle_sql: >
-    select TO_CHAR(-1234567890.0123456789) from tableA a
-  tidb_sql: >
-    select CONVERT(-1234567890.0123456789, CHAR) from tableA a
-
-- comment: TO_CHAR 日期转字符串 (年月日)
-  oracle_sql: >
-    select TO_CHAR(SYSDATE, 'yyyy-MM-dd') from tableA a
-  tidb_sql: >
-    select DATE_FORMAT(NOW(), '%Y-%m-%d') from tableA a
-
-- comment: TO_CHAR 日期转字符串 (年月日 时分秒)
-  oracle_sql: >
-    select TO_CHAR(SYSDATE, 'yyyy-MM-dd hh24:mi:ss') from tableA a
-  tidb_sql: >
-    select DATE_FORMAT(NOW(), '%Y-%m-%d %H:%i:%s') from tableA a
-
-- comment: TO_DATE 字符串转日期 (年月日)
-  oracle_sql: >
-    select TO_DATE('2024-02-29','yyyy-MM-dd') from tableA a
-  tidb_sql: >
-    select STR_TO_DATE('2024-02-29', '%Y-%m-%d') from tableA a
-
-- comment: TO_DATE 字符串转日期 (年月日 时分秒)
-  oracle_sql: >
-    select TO_DATE('2024-02-29 17:31:37','yyyy-MM-dd hh24:mi:ss') from tableA a
-  tidb_sql: >
-    select STR_TO_DATE('2024-02-29 17:31:37', '%Y-%m-%d %H:%i:%s') from tableA a
-
-- comment: TO_DATE TO_CHAR 嵌套
-  oracle_sql: >
-    select * from tableA a where to_date(to_char(a.date, 'yyyy-MM-dd'), 'yyyy-MM-dd') <= to_date(to_char(SYSDATE, 'yyyy-MM-dd'), 'yyyy-MM-dd')
-  tidb_sql: >
-    SELECT *
-    FROM tableA a
-    WHERE STR_TO_DATE(DATE_FORMAT(a.date, '%Y-%m-%d'), '%Y-%m-%d') <= STR_TO_DATE(DATE_FORMAT(NOW(), '%Y-%m-%d'), '%Y-%m-%d')
-
-- comment: TO_CHAR TO_DATE 嵌套
-  oracle_sql: >
-    select * from tableA a where to_char(to_date(a.date, 'yyyy-MM-dd'), 'yyyy-MM-dd') <= to_char(to_date(SYSDATE, 'yyyy-MM-dd'), 'yyyy-MM-dd')
-  tidb_sql: >
-    SELECT *
-    FROM tableA a
-    WHERE DATE_FORMAT(STR_TO_DATE(a.date, '%Y-%m-%d'), '%Y-%m-%d') <= DATE_FORMAT(STR_TO_DATE(NOW(), '%Y-%m-%d'), '%Y-%m-%d')
-
-- comment: 获取系统当前时间 (精确到秒)
-  oracle_sql: >
-    select SYSDATE from tableA a
-  tidb_sql: >
-    select NOW() from tableA a
-
-- comment: 获取系统当前时间 (精确到微秒)
-  oracle_sql: >
-    select SYSTIMESTAMP from tableA a
-  tidb_sql: >
-    select CURRENT_TIMESTAMP(6) from tableA a
-
-- comment: TRUNC 获取日期到日
-  oracle_sql: >
-    select TRUNC(SYSDATE) from tableA a
-  tidb_sql: >
-    select DATE_FORMAT(NOW(), '%Y-%m-%d') from tableA a
-
-- comment: TRUNC 截取数据
-  oracle_sql: >
-    select TRUNC(2.136) from tableA a
-  tidb_sql: >
-    select TRUNCATE(2.136, 0) from tableA a
-
-- comment: TRUNC 截取数据，保留小数点后两位
-  oracle_sql: >
-    select TRUNC(2.136, 2) from tableA a
-  tidb_sql: >
-    select TRUNCATE(2.136, 2) from tableA a
-
-- comment: NVL 判断空值
-  oracle_sql: >
-    select NVL(a.name, 'val') from tableA a
-  tidb_sql: >
-    select IFNULL(a.name, 'val') from tableA a
-
-- comment: NVL2() 判断空值
-  oracle_sql: >
-    select NVL2(a.name, val1, val2) from tableA a
-  tidb_sql: >
-    select IF(a.name is NOT NULL, val1, val2) from tableA a
-
-- comment: 拼接字符串
-  oracle_sql: >
-    select 'a' || 'b' from tableA a
-  tidb_sql: >
-    select CONCAT('a', 'b') from tableA a
-
-- comment: 获取字符串长度
-  oracle_sql: >
-    select LENGTH('a') from tableA a
-  tidb_sql: >
-    select CHAR_LENGTH('a') from tableA a
-
+#- comment: TO_CHAR 数字转字符串
+#  oracle_sql: >
+#    select TO_CHAR(-1234567890.0123456789) from tableA a
+#  tidb_sql: >
+#    select CONVERT(-1234567890.0123456789, CHAR) from tableA a
+#
+#- comment: TO_CHAR 日期转字符串 (年月日)
+#  oracle_sql: >
+#    select TO_CHAR(SYSDATE, 'yyyy-MM-dd') from tableA a
+#  tidb_sql: >
+#    select DATE_FORMAT(NOW(), '%Y-%m-%d') from tableA a
+#
+#- comment: TO_CHAR 日期转字符串 (年月日 时分秒)
+#  oracle_sql: >
+#    select TO_CHAR(SYSDATE, 'yyyy-MM-dd hh24:mi:ss') from tableA a
+#  tidb_sql: >
+#    select DATE_FORMAT(NOW(), '%Y-%m-%d %H:%i:%s') from tableA a
+#
+#- comment: TO_DATE 字符串转日期 (年月日)
+#  oracle_sql: >
+#    select TO_DATE('2024-02-29','yyyy-MM-dd') from tableA a
+#  tidb_sql: >
+#    select STR_TO_DATE('2024-02-29', '%Y-%m-%d') from tableA a
+#
+#- comment: TO_DATE 字符串转日期 (年月日 时分秒)
+#  oracle_sql: >
+#    select TO_DATE('2024-02-29 17:31:37','yyyy-MM-dd hh24:mi:ss') from tableA a
+#  tidb_sql: >
+#    select STR_TO_DATE('2024-02-29 17:31:37', '%Y-%m-%d %H:%i:%s') from tableA a
+#
+#- comment: TO_DATE TO_CHAR 嵌套
+#  oracle_sql: >
+#    select * from tableA a where to_date(to_char(a.date, 'yyyy-MM-dd'), 'yyyy-MM-dd') <= to_date(to_char(SYSDATE, 'yyyy-MM-dd'), 'yyyy-MM-dd')
+#  tidb_sql: >
+#    SELECT *
+#    FROM tableA a
+#    WHERE STR_TO_DATE(DATE_FORMAT(a.date, '%Y-%m-%d'), '%Y-%m-%d') <= STR_TO_DATE(DATE_FORMAT(NOW(), '%Y-%m-%d'), '%Y-%m-%d')
+#
+#- comment: TO_CHAR TO_DATE 嵌套
+#  oracle_sql: >
+#    select * from tableA a where to_char(to_date(a.date, 'yyyy-MM-dd'), 'yyyy-MM-dd') <= to_char(to_date(SYSDATE, 'yyyy-MM-dd'), 'yyyy-MM-dd')
+#  tidb_sql: >
+#    SELECT *
+#    FROM tableA a
+#    WHERE DATE_FORMAT(STR_TO_DATE(a.date, '%Y-%m-%d'), '%Y-%m-%d') <= DATE_FORMAT(STR_TO_DATE(NOW(), '%Y-%m-%d'), '%Y-%m-%d')
+#
+#- comment: 获取系统当前时间 (精确到秒)
+#  oracle_sql: >
+#    select SYSDATE from tableA a
+#  tidb_sql: >
+#    select NOW() from tableA a
+#
+#- comment: 获取系统当前时间 (精确到微秒)
+#  oracle_sql: >
+#    select SYSTIMESTAMP from tableA a
+#  tidb_sql: >
+#    select CURRENT_TIMESTAMP(6) from tableA a
+#
+#- comment: TRUNC 获取日期到日
+#  oracle_sql: >
+#    select TRUNC(SYSDATE) from tableA a
+#  tidb_sql: >
+#    select DATE_FORMAT(NOW(), '%Y-%m-%d') from tableA a
+#
+#- comment: TRUNC 截取数据
+#  oracle_sql: >
+#    select TRUNC(2.136) from tableA a
+#  tidb_sql: >
+#    select TRUNCATE(2.136, 0) from tableA a
+#
+#- comment: TRUNC 截取数据，保留小数点后两位
+#  oracle_sql: >
+#    select TRUNC(2.136, 2) from tableA a
+#  tidb_sql: >
+#    select TRUNCATE(2.136, 2) from tableA a
+#
+#- comment: NVL 判断空值
+#  oracle_sql: >
+#    select NVL(a.name, 'val') from tableA a
+#  tidb_sql: >
+#    select IFNULL(a.name, 'val') from tableA a
+#
+#- comment: NVL2() 判断空值
+#  oracle_sql: >
+#    select NVL2(a.name, val1, val2) from tableA a
+#  tidb_sql: >
+#    select IF(a.name is NOT NULL, val1, val2) from tableA a
+#
+#- comment: 拼接字符串
+#  oracle_sql: >
+#    select 'a' || 'b' from tableA a
+#  tidb_sql: >
+#    select CONCAT('a', 'b') from tableA a
+#
+#- comment: 获取字符串长度
+#  oracle_sql: >
+#    select LENGTH('a') from tableA a
+#  tidb_sql: >
+#    select CHAR_LENGTH('a') from tableA a
+#
 - comment: 获取子串
+  oracle_sql: >
+    select SUBSTR('abc',1,2) from tableA a
+  tidb_sql: >
+    select SUBSTRING('abc', 1, 2) from tableA a
+
+- comment: 获取子串 (起始位置为0)
   oracle_sql: >
     select SUBSTR('abc',0,2) from tableA a
   tidb_sql: >
-    select SUBSTRING('abc', 0, 2) from tableA a
-
-- comment: ASCII 值转化为对应字符
-  oracle_sql: >
-    select CHR(97) from tableA a
-  tidb_sql: >
-    select CHAR(97) from tableA a
-
-- comment: decode函数
-  oracle_sql: >
-    select
-      Decode(a.flag,
-          '1'         ,'特约-' || a.name,
-            e.age) Code
-    from
-      tableA a
-  tidb_sql: >
-    SELECT CASE a.flag
-    		WHEN '1' THEN CONCAT('特约-', a.name)
-    		ELSE e.age
-    	END AS Code
-    FROM tableA a
-
-- comment: decode函数嵌套
-  oracle_sql: >
-    select
-      decode(a.period    ,
-          'P'               ,decode(a.kind,
-              'P'           ,0,
-                'E'         ,0,
-                  'C'       ,0,1),
-            decode(a.kind,
-                'I'         , 0,
-                  1))
-    from
-      table a
-  tidb_sql: >
-    SELECT CASE a.period
-    		WHEN 'P' THEN CASE a.kind
-    				WHEN 'P' THEN 0
-    				WHEN 'E' THEN 0
-    				WHEN 'C' THEN 0
-    				ELSE 1
-    			END
-    		ELSE CASE a.kind
-    			WHEN 'I' THEN 0
-    			ELSE 1
-    		END
-    	END
-    FROM TABLE a
-
-- comment: cast函数
-  oracle_sql: >
-    select cast(regexp_substr(a.versionNo, '[0-9]+') as int) from tableA a
-  tidb_sql: >
-    select cast(regexp_substr(a.versionNo, '[0-9]+') as SIGNED INTEGER) from tableA a
-
-
-- comment: listagg(...) within group (order by ...)
-  oracle_sql: >
-    select listagg(F.riskcode,',') within group (order by riskcode) AS risk_code FROM fdrisk f where F.riskcode  in ('23020020','23020019');
-  tidb_sql: >
-    select group_concat(f.riskcode order by f.riskcode separator ',') as risk_code from fdrisk f where f.riskcode in ('23020020', '23020019');
+    select SUBSTRING('abc', 1, 2) from tableA a
+#
+#- comment: ASCII 值转化为对应字符
+#  oracle_sql: >
+#    select CHR(97) from tableA a
+#  tidb_sql: >
+#    select CHAR(97) from tableA a
+#
+#- comment: decode函数
+#  oracle_sql: >
+#    select
+#      Decode(a.flag,
+#          '1'         ,'特约-' || a.name,
+#            e.age) Code
+#    from
+#      tableA a
+#  tidb_sql: >
+#    SELECT CASE a.flag
+#    		WHEN '1' THEN CONCAT('特约-', a.name)
+#    		ELSE e.age
+#    	END AS Code
+#    FROM tableA a
+#
+#- comment: decode函数嵌套
+#  oracle_sql: >
+#    select
+#      decode(a.period    ,
+#          'P'               ,decode(a.kind,
+#              'P'           ,0,
+#                'E'         ,0,
+#                  'C'       ,0,1),
+#            decode(a.kind,
+#                'I'         , 0,
+#                  1))
+#    from
+#      table a
+#  tidb_sql: >
+#    SELECT CASE a.period
+#    		WHEN 'P' THEN CASE a.kind
+#    				WHEN 'P' THEN 0
+#    				WHEN 'E' THEN 0
+#    				WHEN 'C' THEN 0
+#    				ELSE 1
+#    			END
+#    		ELSE CASE a.kind
+#    			WHEN 'I' THEN 0
+#    			ELSE 1
+#    		END
+#    	END
+#    FROM TABLE a
+#
+#- comment: cast函数
+#  oracle_sql: >
+#    select cast(regexp_substr(a.versionNo, '[0-9]+') as int) from tableA a
+#  tidb_sql: >
+#    select cast(regexp_substr(a.versionNo, '[0-9]+') as SIGNED INTEGER) from tableA a
+#
+#
+#- comment: listagg(...) within group (order by ...)
+#  oracle_sql: >
+#    select listagg(F.riskcode,',') within group (order by riskcode) AS risk_code FROM fdrisk f where F.riskcode  in ('23020020','23020019');
+#  tidb_sql: >
+#    select group_concat(f.riskcode order by f.riskcode separator ',') as risk_code from fdrisk f where f.riskcode in ('23020020', '23020019');

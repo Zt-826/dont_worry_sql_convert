@@ -1,7 +1,98 @@
-select * from tableA a join tableB b on a.id = b.id
-left join tableC c on c.id = a.id
-right join tableD d on d.id = b.id
-where a.name = ? and b.name = ''
-    
-select * from tableA a join (select * from tableB b where b.name = ?) b on a.id = b.id
-    where a.name  = ? and b.name = ''
+select a.settleNo,
+       a.freinsCode,
+       a.comCode,
+       a.comCName comName,
+       a.taxAmount,
+       a.amountLittle,
+       a.paidTaxFeeCNY,
+       a.paidPlanFeeCNY,
+       a.differenceAmount
+  from (select a.settleNo,
+               a.freinscode,
+               a.comCode,
+               c.comCName,
+               a.taxamount,
+               a.amountlittle,
+               b.paidtaxfeeCNY,
+               sum(b.paidtaxfeeCNY + paidPlanFeeCNY) paidPlanFeeCNY,
+               sum(b.paidtaxFeeCNY - a.taxamount) differenceAmount
+          from (select a.settleNo,
+                       a.reinsCode freinscode,
+                       a.comcode,
+                       sum(a.taxamount) taxamount,
+                       sum(a.amountlittle) amountlittle
+                  from FJINVOICEDETAIL a
+                 where a.settleNo = 'S2024P0128'
+                 group by a.settleNo, a.reinsCode, a.comcode
+                 order by a.reinsCode) a,
+               (select invoicereinscode,
+                       COMCODE,
+                       sum(PAIDTAXFEECNY) PAIDTAXFEECNY,
+                       SETTLENO,
+                       sum(paidPlanFeeCNY) paidPlanFeeCNY
+                  from (select decode(invoicereinscode,
+                                      'RC0020',
+                                      'RC0068',
+                                      invoiceReinsCode) invoiceReinsCode,
+                               comCode,
+                               paidtaxfeeCNY,
+                               settleNo,
+                               paidPlanFeeCNY
+                          from FJSETTLETAXDETAIL
+                         where taxflag = '1'
+                           and withholdflag = '0')
+                 where 1 = 1
+                 group by invoicereinscode, comCode, settleNo) b,
+               fdCompany c
+         where a.settleno = b.settleNo
+           and b.invoicereinscode = a.freinscode
+           and b.comCode = a.comCode
+           and a.comcode = c.comcode
+           and a.SETTLENO = 'S2024P0128'
+           and a.freinscode = 'RC0039'
+         group by a.settleNo,
+                  a.freinscode,
+                  a.comCode,
+                  c.comCName,
+                  a.taxAmount,
+                  a.amountLittle,
+                  b.paidTaxFeeCNY
+        union all
+        select settleNo,
+               freinsCode,
+               comCode,
+               comName,
+               0 taxAmount,
+               0 amountLittle,
+               sum(paidtaxfeeCNY) paidTaxFeeCNY,
+               sum(paidPlanFeeCNY) paidPlanFeeCNY,
+               sum(differenceamount) differenceAmount
+          from (select a.settleno,
+                       decode(a.invoicereinscode,
+                              'RC0020',
+                              'RC0068',
+                              a.invoiceReinsCode) freinscode,
+                       a.comcode,
+                       b.comCName comname,
+                       a.paidtaxfeeCNY,
+                       (a.paidplanfeecny + a.Paidtaxfeecny) paidPlanFeeCNY,
+                       a.paidtaxfeeCNY differenceamount
+                  from FJSETTLETAXDETAIL a, fdCompany b
+                 where a.taxFlag = '1'
+                   and a.withHoldFlag = '0'
+                   and a.paidtaxfeeCNY <> 0
+                   and a.comcode = b.comcode
+                   and a.settleno =  'S2024P0128'
+                   and (a.comcode not in
+                       (select COMCODE
+                           from FJINVOICEDETAIL
+                          where settleno = 'S2024P0128') or
+                       a.invoicereinscode not in
+                       (select REINSCODE
+                           from FJINVOICEDETAIL
+                          where settleno = 'S2024P0128')))
+         where 1 = 1
+           and freinscode = 'RC0039'
+         group by settleNo, freinscode, comcode, comname) a
+ where a.differenceAmount <> 0
+ order by a.comCode

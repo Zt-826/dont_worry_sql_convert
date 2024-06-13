@@ -1934,6 +1934,13 @@ public class SQLASTOutputVisitor extends SQLASTVisitorAdapter implements Paramet
         // 处理SUBSTR
         if (function.equalsIgnoreCase("SUBSTR")) {
             x.setMethodName("SUBSTRING");
+            SQLExpr sqlExpr = x.getArguments().get(1);
+            if (sqlExpr instanceof SQLIntegerExpr) {
+                SQLIntegerExpr sqlIntegerExpr = (SQLIntegerExpr) sqlExpr;
+                if (sqlIntegerExpr.getNumber().equals(0)) {
+                    sqlIntegerExpr.setNumber(1);
+                }
+            }
         }
 
         // 处理CHA

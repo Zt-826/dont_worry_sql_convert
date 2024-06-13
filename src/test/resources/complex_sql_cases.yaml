@@ -1,4 +1,4 @@
-- comment: 多层嵌套语句 1
+- comment: 复杂SQL-1
   oracle_sql: >
     SELECT
     	*
@@ -60,7 +60,7 @@
             where
               k.objectid = b.objectid
             and z.objectid is not null ) )
-- comment: 多层嵌套语句 2
+- comment: 复杂SQL-2
   oracle_sql: >
     select
       *
@@ -93,7 +93,7 @@
               AND f.VALIDFLAG  = '1' )
           AND b.certifyno      = e.certifyno ))
   tidb_sql: select * from tablea a left join tableb b on a.id = b.id where exists ( select 1 from reinsvalidriskunit e left join tabled d on e.id = d.id where b.certifyno = e.certifyno and e.policyno in ( select f.certifyno from reinsenquiryregisterbinding f right join tablen n on n.id = f.id where b.sequenceno = f.sequenceno and f.certitype = 'p' and f.validflag = '1' ) )
-- comment: 未结付查询脚本
+- comment: 复杂SQL-3
   oracle_sql: >
     Select
       x.payNo                                       ,
@@ -833,278 +833,9 @@
       x.Letter              ,
       x.Serialno
   tidb_sql: >
-    SELECT x.payNo, x.Accreinscode AS Paycode, x.Freinsname, x.Freinscode, x.treatyename
-    	, x.Accno, x.acckind, x.Riskcode, x.Riskname, x.Repolicyno
-    	, x.Recertifyno, x.Drcertifyno, DATE_FORMAT(x.Settledate, '%Y-%m-%d') AS Settledate
-    	, x.Treatyno, x.Sectionno, x.uwyear, x.Accperiod, x.Buscurrency
-    	, x.balance1, x.Acccurrency, x.balance, x.Serialbalance, x.Freinsbalance
-    	, x.reinsurerBalance, x.Busandaccexchrate, x.Codeename, x.Acckinds, x.Taxflag
-    	, x.Withholdflag, x.Codecname, x.Writtendate, x.Yourref, x.Youraccno
-    	, x.writeFlag, x.writeOffFlag, x.settleApplyNo, x.settleApplyStatus
-    FROM (
-    	SELECT m.Freinsname, m.Freinscode, m.treatyename, m.Accno, m.Riskcode
-    		, m.Riskname, m.acckind, m.Repolicyno, m.Recertifyno, m.Drcertifyno
-    		, m.Settledate, m.Treatyno, m.Sectionno, m.uwyear, m.Accperiod
-    		, m.Buscurrency, m.balance1, m.Acccurrency, m.balance, m.Serialbalance
-    		, m.Freinsbalance, m.reinsurerBalance, m.Busandaccexchrate, m.Codeename, m.Acckinds
-    		, m.Taxflag, m.Withholdflag, m.Accreinscode, m.Codecname, m.Writtendate
-    		, m.Yourref, m.Youraccno, m.payno, m.Settlestatus, m.Letter
-    		, m.writeFlag, m.writeOffFlag, Row_Number() OVER (PARTITION BY m.Letter ORDER BY m.Accperiod, m.Treatyno, m.Accno, m.Sectionno, m.Freinscode, m.Codecname, m.treatyename, m.Buscurrency, m.balance1) AS Serialno, NULL AS settleApplyNo
-    		, NULL AS settleApplyStatus
-    	FROM (
-    		SELECT h.Freinsname, h.Freinscode, h.treatyename, h.Accno, h.Riskcode
-    			, h.Riskname, h.acckind, h.Repolicyno, h.Recertifyno, h.Drcertifyno
-    			, h.Settledate, h.Treatyno, h.Sectionno, h.uwyear, h.Accperiod
-    			, h.Buscurrency, sum(h.Busbalance) OVER (PARTITION BY h.accno) AS balance1, h.Acccurrency
-    			, sum(h.Accbalance) OVER (PARTITION BY h.accno) AS balance
-    			, sum(h.Accbalance) OVER (PARTITION BY h.accno, h.payno) AS Serialbalance, h.Freinsbalance
-    			, h.reinsurerBalance, h.busandaccexchrate, h.acckinds, h.taxflag, h.withholdflag
-    			, h.Accreinscode, h.writtendate, h.yourref, h.youraccno
-    			, CASE h.Facflag
-    				WHEN '1' THEN CONCAT('特约-', e.Codeename)
-    				ELSE e.Codeename
-    			END AS Codeename
-    			, e.Codecname, h.Settlestatus, h.payno, h.Letter, h.writeFlag
-    			, h.writeOffFlag
-    		FROM (
-    			SELECT b.longName AS Freinsname, a.Freinscode, c.OPTTYPE, d.treatyename, c.Accno
-    				, NULL AS Riskcode, NULL AS Riskname, '合约' AS acckind, NULL AS Repolicyno, NULL AS Recertifyno
-    				, NULL AS Drcertifyno, a.Settledate, c.Treatyno, c.Sectionno, c.uwyear
-    				, c.Accperiod, c.writeFlag, sum(a.Busbalance) AS Busbalance
-    				, sum(a.Accbalance) AS Accbalance
-    				, Sum(a.Accbalance) - Sum(a.Accpaidvalue) AS Freinsbalance
-    				, Sum(a.Busbalance) - Sum(a.busPaidValue) AS reinsurerBalance
-    				, a.Buscurrency, a.Acccurrency, a.busandaccexchrate, c.acckind AS acckinds, c.taxflag
-    				, c.withholdflag, c.Accreinscode, c.writtendate, c.yourref, c.youraccno
-    				, a.Settlestatus
-    				, CASE SUBSTRING(d.Treatytype, 0, 1)
-    					WHEN '7' THEN a.payno
-    					ELSE 1
-    				END AS payno
-    				, c.Acctype, c.Facflag
-    				, CASE SUBSTRING(d.Treatytype, 0, 1)
-    					WHEN '7' THEN 'B'
-    					ELSE 'A'
-    				END AS Letter
-    				, CASE c.writeOffFlag
-    					WHEN '0' THEN NULL
-    					WHEN '1' THEN '冲销账'
-    					ELSE '冲销账'
-    				END AS writeOffFlag
-    			FROM Fzacc c
-    			JOIN (
-    				SELECT treatyno, treatyename, Treatytype, accperiod
-    				FROM Fhtreaty
-    			) d ON c.Treatyno = d.Treatyno
-    			JOIN Fzplanmain a ON a.Accno = c.Accno
-    				LEFT JOIN fdReins b ON a.Freinscode = b.REINSCODE
-    			WHERE c.Opttype = NULL
-    				AND CASE SUBSTRING(d.Treatytype, 0, 1)
-    					WHEN '7' THEN CASE c.Acckind
-    							WHEN 'O' THEN 0
-    							WHEN 'L' THEN 0
-    							ELSE 1
-    						END
-    					ELSE CASE d.Accperiod
-    						WHEN 'P' THEN CASE c.Acckind
-    								WHEN 'P' THEN 0
-    								WHEN 'E' THEN 0
-    								WHEN 'C' THEN 0
-    								ELSE 1
-    							END
-    						ELSE CASE c.Acckind
-    							WHEN 'I' THEN 0
-    							ELSE 1
-    						END
-    					END
-    				END = 1
-    				AND c.Confirmstate = '1'
-    				AND c.Acctype = '11'
-    			GROUP BY c.OPTTYPE, b.longName, a.Freinscode, d.treatyename, c.Accno, a.Settledate, c.Treatyno, c.Sectionno, c.uwyear, c.Accperiod, a.Buscurrency, a.Acccurrency, a.busandaccexchrate, c.acckind, c.taxflag, c.withholdflag, c.Accreinscode, c.writtendate, c.yourref, c.youraccno, d.Treatytype, a.Settlestatus, CASE SUBSTRING(d.Treatytype, 0, 1)
-    					WHEN '7' THEN a.payno
-    					ELSE 1
-    				END, c.Acctype, c.Facflag, c.writeOffFlag, c.writeFlag
-    		) h
-    			LEFT JOIN Fdcode e ON h.Acckinds = e.Codetype
-    			AND h.Acctype = e.Codecode
-    			AND h.opttype = e.codedesc
-    			AND e.Newcodecode = 'fdsettleConfig'
-    	) m
-    	WHERE 1 = 1
-    		AND m.Settlestatus IN ('0', '1')
-    		AND STR_TO_DATE(DATE_FORMAT(m.SettleDate, '%Y-%m-%d'), '%Y-%m-%d') <= STR_TO_DATE(DATE_FORMAT(NULL, '%Y-%m-%d'), '%Y-%m-%d')
-    	UNION ALL
-    	SELECT m.Freinsname, m.Freinscode, m.treatyename, m.Accno, m.Riskcode
-    		, m.Riskname, m.acckind, m.Repolicyno, m.Recertifyno, m.Drcertifyno
-    		, m.Settledate, m.Treatyno, m.Sectionno, m.uwyear, m.Accperiod
-    		, m.Buscurrency, m.balance1, m.Acccurrency, m.balance, m.Serialbalance
-    		, m.Freinsbalance, m.reinsurerBalance, m.Busandaccexchrate, m.Codeename, m.Acckinds
-    		, m.Taxflag, m.Withholdflag, m.Accreinscode, m.Codecname, m.Writtendate
-    		, m.Yourref, m.Youraccno, m.payno, m.Settlestatus, m.Letter
-    		, m.writeFlag, m.writeOffFlag, Row_Number() OVER (PARTITION BY m.Letter ORDER BY m.Codecname, m.Accperiod, m.Treatyno, m.Sectionno, m.Freinscode, m.treatyename, m.Buscurrency, m.balance1) AS Serialno, NULL AS settleApplyNo
-    		, NULL AS settleApplyStatus
-    	FROM (
-    		SELECT h.Freinsname, h.Freinscode, h.treatyename, h.Accno, h.Riskcode
-    			, h.Riskname, h.acckind, h.Repolicyno, h.Recertifyno, h.Drcertifyno
-    			, h.Settledate, h.Treatyno, h.Sectionno, h.uwyear, h.Accperiod
-    			, h.Buscurrency, sum(h.Busbalance) OVER (PARTITION BY h.accno) AS balance1, h.Acccurrency
-    			, sum(h.Accbalance) OVER (PARTITION BY h.accno) AS balance
-    			, sum(h.Accbalance) OVER (PARTITION BY h.accno, h.payno) AS Serialbalance, h.Freinsbalance
-    			, h.reinsurerBalance, h.busandaccexchrate, h.acckinds, h.taxflag, h.withholdflag
-    			, h.Accreinscode, h.writtendate, h.yourref, h.youraccno, h.writeFlag
-    			, CASE h.Facflag
-    				WHEN '1' THEN CONCAT('特约-', e.Codeename)
-    				ELSE e.Codeename
-    			END AS Codeename
-    			, CASE e.Codetype
-    				WHEN 'X' THEN '0'
-    				ELSE e.Codecname
-    			END AS Codecname
-    			, h.Settlestatus, h.payno, h.Letter, h.writeOffFlag
-    		FROM (
-    			SELECT b.longName AS Freinsname, a.Freinscode, c.OPTTYPE, d.treatyename, c.Accno
-    				, NULL AS Riskcode, NULL AS Riskname, '合约' AS acckind, NULL AS Repolicyno, NULL AS Recertifyno
-    				, NULL AS Drcertifyno, a.Settledate, c.Treatyno, CONVERT(c.layerNo, CHAR) AS Sectionno
-    				, c.uwyear
-    				, CASE c.accKind
-    					WHEN 'X' THEN CONVERT(a.payno, CHAR)
-    					ELSE c.accPeriod
-    				END AS Accperiod
-    				, c.writeFlag, sum(a.Busbalance) AS Busbalance, sum(a.Accbalance) AS Accbalance
-    				, Sum(a.Accbalance) - Sum(a.Accpaidvalue) AS Freinsbalance
-    				, Sum(a.Busbalance) - Sum(a.busPaidValue) AS reinsurerBalance
-    				, a.Buscurrency, a.Acccurrency, a.busandaccexchrate, c.acckind AS acckinds, c.taxflag
-    				, c.withholdflag, c.Accreinscode, c.writtendate, c.yourref, c.youraccno
-    				, a.Settlestatus
-    				, CASE SUBSTRING(d.Treatytype, 0, 1)
-    					WHEN '7' THEN a.payno
-    					ELSE 1
-    				END AS payno
-    				, c.Acctype, c.Facflag
-    				, CASE SUBSTRING(d.Treatytype, 0, 1)
-    					WHEN '7' THEN 'B'
-    					ELSE 'A'
-    				END AS Letter
-    				, CASE c.writeOffFlag
-    					WHEN '0' THEN NULL
-    					WHEN '1' THEN '冲销账'
-    					ELSE '冲销账'
-    				END AS writeOffFlag
-    			FROM Fzacc c
-    			JOIN (
-    				SELECT treatyno, treatyename, Treatytype, NULL
-    				FROM Fhxtreaty
-    			) d ON c.Treatyno = d.Treatyno
-    			JOIN Fzplanmain a ON a.Accno = c.Accno
-    				LEFT JOIN fdReins b ON a.Freinscode = b.REINSCODE
-    			WHERE c.Opttype = NULL
-    				AND CASE SUBSTRING(d.Treatytype, 0, 1)
-    					WHEN '7' THEN CASE c.Acckind
-    							WHEN 'O' THEN 0
-    							WHEN 'L' THEN 0
-    							ELSE 1
-    						END
-    				END = 1
-    				AND c.Confirmstate = '1'
-    				AND c.Acctype = '11'
-    			GROUP BY c.OPTTYPE, b.longName, a.Freinscode, d.treatyename, c.Accno, a.Settledate, c.Treatyno, c.layerNo, c.uwyear, CASE c.accKind
-    					WHEN 'X' THEN CONVERT(a.payno, CHAR)
-    					ELSE c.accPeriod
-    				END, a.Buscurrency, a.Acccurrency, a.busandaccexchrate, c.acckind, c.taxflag, c.withholdflag, c.Accreinscode, c.writtendate, c.yourref, c.youraccno, d.Treatytype, a.Settlestatus, CASE SUBSTRING(d.Treatytype, 0, 1)
-    					WHEN '7' THEN a.payno
-    					ELSE 1
-    				END, c.Acctype, c.Facflag, c.writeOffFlag, c.writeFlag
-    		) h
-    			LEFT JOIN Fdcode e ON h.Acckinds = e.Codetype
-    			AND h.Acctype = e.Codecode
-    			AND h.opttype = e.codedesc
-    			AND e.Newcodecode = 'fdsettleConfig'
-    	) m
-    	WHERE 1 = 1
-    		AND m.Settlestatus IN ('0', '1')
-    		AND STR_TO_DATE(DATE_FORMAT(m.SettleDate, '%Y-%m-%d'), '%Y-%m-%d') <= STR_TO_DATE(DATE_FORMAT(NULL, '%Y-%m-%d'), '%Y-%m-%d')
-    	UNION ALL
-    	SELECT m.Freinsname, m.Freinscode, m.Insuredname AS treatyename, m.Accno, m.Riskcode
-    		, m.Riskname, m.acckind, m.Repolicyno, m.Recertifyno, m.Drcertifyno
-    		, m.Settledate, m.Treatyno, m.Sectionno, m.uwyear, m.Accperiod
-    		, m.Buscurrency, m.balance1, m.Acccurrency, m.balance, m.Serialbalance
-    		, m.Freinsbalance, m.reinsurerBalance, m.Busandaccexchrate, m.Codeename, m.Acckinds
-    		, m.Taxflag, m.Withholdflag, m.Accreinscode, m.Codecname, m.Writtendate
-    		, m.Yourref, m.Youraccno, m.payno, m.Settlestatus, m.Letter
-    		, m.writeFlag, m.writeOffFlag, Row_Number() OVER (ORDER BY m.Codecname, m.uwyear, m.Drcertifyno, m.payno, m.Freinscode, m.Insuredname, m.Buscurrency, m.balance1) AS Serialno, m.settleApplyNo
-    		, m.settleApplyStatus
-    	FROM (
-    		SELECT h.Freinsname, h.Freinscode, h.Insuredname, h.Accno, h.Riskcode
-    			, h.Riskname, h.acckind, h.Repolicyno, h.Recertifyno, h.Drcertifyno
-    			, h.Settledate, h.Treatyno, h.Sectionno, h.uwyear, h.Accperiod
-    			, h.Buscurrency, h.Busbalance AS balance1, h.Acccurrency, h.Accbalance AS balance
-    			, (
-    				SELECT sum(ACCBALANCE)
-    				FROM FZPLANMAIN x
-    				WHERE x.ACCNO = h.ACCNO
-    					AND x.PAYNO = h.PAYNO
-    			) AS Serialbalance, h.Freinsbalance, h.reinsurerBalance, h.busandaccexchrate, h.acckinds
-    			, h.taxflag, h.withholdflag, h.Accreinscode, h.writtendate, h.yourref
-    			, h.youraccno, h.writeFlag
-    			, CASE h.Facflag
-    				WHEN '1' THEN CONCAT('特约-', e.Codeename)
-    				ELSE e.Codeename
-    			END AS Codeename
-    			, e.Codecname, h.Settlestatus, h.payno, h.Letter, h.writeOffFlag
-    			, h.settleApplyNo, h.settleApplyStatus
-    		FROM (
-    			SELECT b.longName AS Freinsname, a.Freinscode, c.OPTTYPE, c.Insuredname, c.Accno
-    				, c.Riskcode, d.Riskcname AS Riskname
-    				, CONCAT(CONCAT('临分', '-'), CASE c.Acckind
-    					WHEN 'P' THEN '保单'
-    					WHEN 'H' THEN '保单'
-    					WHEN 'E' THEN '批单'
-    					WHEN 'J' THEN '批单'
-    					WHEN 'C' THEN '赔案'
-    					WHEN 'K' THEN '赔案'
-    					ELSE NULL
-    				END) AS acckind
-    				, c.Repolicyno, c.Recertifyno, c.Drcertifyno, a.Settledate, NULL AS Treatyno
-    				, NULL AS Sectionno, c.uwyear, c.writeFlag, CONCAT(a.payno, NULL) AS Accperiod
-    				, c.Busbalance, c.Accbalance
-    				, Sum(a.Accbalance) - Sum(a.Accpaidvalue) AS Freinsbalance
-    				, Sum(a.Busbalance) - Sum(a.busPaidValue) AS reinsurerBalance
-    				, a.Buscurrency, a.Acccurrency, a.busandaccexchrate, c.acckind AS acckinds, c.taxflag
-    				, c.withholdflag, c.Accreinscode, c.writtendate, c.yourref, c.youraccno
-    				, a.Settlestatus, a.payno, c.Acctype, c.Facflag, 'C' AS Letter
-    				, CASE c.writeOffFlag
-    					WHEN '0' THEN NULL
-    					WHEN '1' THEN '冲销账'
-    					ELSE '冲销账'
-    				END AS writeOffFlag
-    				, a.settleApplyNo, a.settleApplyStatus
-    			FROM Fzacc c
-    			JOIN fdrisk d ON c.riskcode = d.riskcode
-    			JOIN Fzplanmain a ON a.Accno = c.Accno
-    				LEFT JOIN fdReins b ON a.Freinscode = b.REINSCODE
-    			WHERE c.Opttype = NULL
-    				AND c.Confirmstate = '1'
-    				AND c.Acctype = '10'
-    			GROUP BY c.OPTTYPE, b.longName, a.Freinscode, c.Insuredname, c.Accno, c.Riskcode, d.Riskcname, c.Repolicyno, c.Recertifyno, c.Drcertifyno, a.Settledate, c.Treatyno, c.Sectionno, c.uwyear, a.Buscurrency, a.Acccurrency, a.busandaccexchrate, c.acckind, c.taxflag, c.withholdflag, c.Accreinscode, c.writtendate, c.yourref, c.youraccno, a.Settlestatus, a.payno, c.Acctype, c.Facflag, c.writeOffFlag, c.writeFlag, a.settleApplyNo, a.settleApplyStatus, a.Accbalance, a.Busbalance, a.Accpaidvalue, a.busPaidValue, c.Accbalance, c.Busbalance
-    		) h
-    			LEFT JOIN Fdcode e ON h.Acckinds = e.Codetype
-    			AND h.Acctype = e.Codecode
-    			AND h.opttype = e.codedesc
-    			AND e.Newcodecode = 'fdsettleConfig'
-    	) m
-    	WHERE 1 = 1
-    		AND m.Settlestatus IN ('0', '1')
-    		AND STR_TO_DATE(DATE_FORMAT(m.SettleDate, '%Y-%m-%d'), '%Y-%m-%d') <= STR_TO_DATE(DATE_FORMAT(NULL, '%Y-%m-%d'), '%Y-%m-%d')
-    ) x
-    WHERE x.Freinsbalance <> 0
-    	OR x.reinsurerBalance <> 0
-    ORDER BY CASE x.Acccurrency
-    	WHEN 'CNY' THEN '1'
-    	WHEN 'USD' THEN '2'
-    	ELSE x.Acccurrency
-    END, x.Letter, x.Serialno
+    select x.payno, x.accreinscode as paycode, x.freinsname, x.freinscode, x.treatyename , x.accno, x.acckind, x.riskcode, x.riskname, x.repolicyno , x.recertifyno, x.drcertifyno, date_format(x.settledate, '%y-%m-%d') as settledate , x.treatyno, x.sectionno, x.uwyear, x.accperiod, x.buscurrency , x.balance1, x.acccurrency, x.balance, x.serialbalance, x.freinsbalance , x.reinsurerbalance, x.busandaccexchrate, x.codeename, x.acckinds, x.taxflag , x.withholdflag, x.codecname, x.writtendate, x.yourref, x.youraccno , x.writeflag, x.writeoffflag, x.settleapplyno, x.settleapplystatus from ( select m.freinsname, m.freinscode, m.treatyename, m.accno, m.riskcode , m.riskname, m.acckind, m.repolicyno, m.recertifyno, m.drcertifyno , m.settledate, m.treatyno, m.sectionno, m.uwyear, m.accperiod , m.buscurrency, m.balance1, m.acccurrency, m.balance, m.serialbalance , m.freinsbalance, m.reinsurerbalance, m.busandaccexchrate, m.codeename, m.acckinds , m.taxflag, m.withholdflag, m.accreinscode, m.codecname, m.writtendate , m.yourref, m.youraccno, m.payno, m.settlestatus, m.letter , m.writeflag, m.writeoffflag, row_number() over (partition by m.letter order by m.accperiod, m.treatyno, m.accno, m.sectionno, m.freinscode, m.codecname, m.treatyename, m.buscurrency, m.balance1) as serialno, null as settleapplyno , null as settleapplystatus from ( select h.freinsname, h.freinscode, h.treatyename, h.accno, h.riskcode , h.riskname, h.acckind, h.repolicyno, h.recertifyno, h.drcertifyno , h.settledate, h.treatyno, h.sectionno, h.uwyear, h.accperiod , h.buscurrency, sum(h.busbalance) over (partition by h.accno) as balance1, h.acccurrency , sum(h.accbalance) over (partition by h.accno) as balance , sum(h.accbalance) over (partition by h.accno, h.payno) as serialbalance, h.freinsbalance , h.reinsurerbalance, h.busandaccexchrate, h.acckinds, h.taxflag, h.withholdflag , h.accreinscode, h.writtendate, h.yourref, h.youraccno , case h.facflag when '1' then concat('特约-', e.codeename) else e.codeename end as codeename , e.codecname, h.settlestatus, h.payno, h.letter, h.writeflag , h.writeoffflag from ( select b.longname as freinsname, a.freinscode, c.opttype, d.treatyename, c.accno , null as riskcode, null as riskname, '合约' as acckind, null as repolicyno, null as recertifyno , null as drcertifyno, a.settledate, c.treatyno, c.sectionno, c.uwyear , c.accperiod, c.writeflag, sum(a.busbalance) as busbalance , sum(a.accbalance) as accbalance , sum(a.accbalance) - sum(a.accpaidvalue) as freinsbalance , sum(a.busbalance) - sum(a.buspaidvalue) as reinsurerbalance , a.buscurrency, a.acccurrency, a.busandaccexchrate, c.acckind as acckinds, c.taxflag , c.withholdflag, c.accreinscode, c.writtendate, c.yourref, c.youraccno , a.settlestatus , case substring(d.treatytype, 1, 1) when '7' then a.payno else 1 end as payno , c.acctype, c.facflag , case substring(d.treatytype, 1, 1) when '7' then 'b' else 'a' end as letter , case c.writeoffflag when '0' then null when '1' then '冲销账' else '冲销账' end as writeoffflag from fzacc c join ( select treatyno, treatyename, treatytype, accperiod from fhtreaty ) d on c.treatyno = d.treatyno join fzplanmain a on a.accno = c.accno left join fdreins b on a.freinscode = b.reinscode where c.opttype = null and case substring(d.treatytype, 1, 1) when '7' then case c.acckind when 'o' then 0 when 'l' then 0 else 1 end else case d.accperiod when 'p' then case c.acckind when 'p' then 0 when 'e' then 0 when 'c' then 0 else 1 end else case c.acckind when 'i' then 0 else 1 end end end = 1 and c.confirmstate = '1' and c.acctype = '11' group by c.opttype, b.longname, a.freinscode, d.treatyename, c.accno, a.settledate, c.treatyno, c.sectionno, c.uwyear, c.accperiod, a.buscurrency, a.acccurrency, a.busandaccexchrate, c.acckind, c.taxflag, c.withholdflag, c.accreinscode, c.writtendate, c.yourref, c.youraccno, d.treatytype, a.settlestatus, case substring(d.treatytype, 1, 1) when '7' then a.payno else 1 end, c.acctype, c.facflag, c.writeoffflag, c.writeflag ) h left join fdcode e on h.acckinds = e.codetype and h.acctype = e.codecode and h.opttype = e.codedesc and e.newcodecode = 'fdsettleconfig' ) m where 1 = 1 and m.settlestatus in ('0', '1') and str_to_date(date_format(m.settledate, '%y-%m-%d'), '%y-%m-%d') <= str_to_date(date_format(null, '%y-%m-%d'), '%y-%m-%d') union all select m.freinsname, m.freinscode, m.treatyename, m.accno, m.riskcode , m.riskname, m.acckind, m.repolicyno, m.recertifyno, m.drcertifyno , m.settledate, m.treatyno, m.sectionno, m.uwyear, m.accperiod , m.buscurrency, m.balance1, m.acccurrency, m.balance, m.serialbalance , m.freinsbalance, m.reinsurerbalance, m.busandaccexchrate, m.codeename, m.acckinds , m.taxflag, m.withholdflag, m.accreinscode, m.codecname, m.writtendate , m.yourref, m.youraccno, m.payno, m.settlestatus, m.letter , m.writeflag, m.writeoffflag, row_number() over (partition by m.letter order by m.codecname, m.accperiod, m.treatyno, m.sectionno, m.freinscode, m.treatyename, m.buscurrency, m.balance1) as serialno, null as settleapplyno , null as settleapplystatus from ( select h.freinsname, h.freinscode, h.treatyename, h.accno, h.riskcode , h.riskname, h.acckind, h.repolicyno, h.recertifyno, h.drcertifyno , h.settledate, h.treatyno, h.sectionno, h.uwyear, h.accperiod , h.buscurrency, sum(h.busbalance) over (partition by h.accno) as balance1, h.acccurrency , sum(h.accbalance) over (partition by h.accno) as balance , sum(h.accbalance) over (partition by h.accno, h.payno) as serialbalance, h.freinsbalance , h.reinsurerbalance, h.busandaccexchrate, h.acckinds, h.taxflag, h.withholdflag , h.accreinscode, h.writtendate, h.yourref, h.youraccno, h.writeflag , case h.facflag when '1' then concat('特约-', e.codeename) else e.codeename end as codeename , case e.codetype when 'x' then '0' else e.codecname end as codecname , h.settlestatus, h.payno, h.letter, h.writeoffflag from ( select b.longname as freinsname, a.freinscode, c.opttype, d.treatyename, c.accno , null as riskcode, null as riskname, '合约' as acckind, null as repolicyno, null as recertifyno , null as drcertifyno, a.settledate, c.treatyno, convert(c.layerno, char) as sectionno , c.uwyear , case c.acckind when 'x' then convert(a.payno, char) else c.accperiod end as accperiod , c.writeflag, sum(a.busbalance) as busbalance, sum(a.accbalance) as accbalance , sum(a.accbalance) - sum(a.accpaidvalue) as freinsbalance , sum(a.busbalance) - sum(a.buspaidvalue) as reinsurerbalance , a.buscurrency, a.acccurrency, a.busandaccexchrate, c.acckind as acckinds, c.taxflag , c.withholdflag, c.accreinscode, c.writtendate, c.yourref, c.youraccno , a.settlestatus , case substring(d.treatytype, 1, 1) when '7' then a.payno else 1 end as payno , c.acctype, c.facflag , case substring(d.treatytype, 1, 1) when '7' then 'b' else 'a' end as letter , case c.writeoffflag when '0' then null when '1' then '冲销账' else '冲销账' end as writeoffflag from fzacc c join ( select treatyno, treatyename, treatytype, null from fhxtreaty ) d on c.treatyno = d.treatyno join fzplanmain a on a.accno = c.accno left join fdreins b on a.freinscode = b.reinscode where c.opttype = null and case substring(d.treatytype, 1, 1) when '7' then case c.acckind when 'o' then 0 when 'l' then 0 else 1 end end = 1 and c.confirmstate = '1' and c.acctype = '11' group by c.opttype, b.longname, a.freinscode, d.treatyename, c.accno, a.settledate, c.treatyno, c.layerno, c.uwyear, case c.acckind when 'x' then convert(a.payno, char) else c.accperiod end, a.buscurrency, a.acccurrency, a.busandaccexchrate, c.acckind, c.taxflag, c.withholdflag, c.accreinscode, c.writtendate, c.yourref, c.youraccno, d.treatytype, a.settlestatus, case substring(d.treatytype, 1, 1) when '7' then a.payno else 1 end, c.acctype, c.facflag, c.writeoffflag, c.writeflag ) h left join fdcode e on h.acckinds = e.codetype and h.acctype = e.codecode and h.opttype = e.codedesc and e.newcodecode = 'fdsettleconfig' ) m where 1 = 1 and m.settlestatus in ('0', '1') and str_to_date(date_format(m.settledate, '%y-%m-%d'), '%y-%m-%d') <= str_to_date(date_format(null, '%y-%m-%d'), '%y-%m-%d') union all select m.freinsname, m.freinscode, m.insuredname as treatyename, m.accno, m.riskcode , m.riskname, m.acckind, m.repolicyno, m.recertifyno, m.drcertifyno , m.settledate, m.treatyno, m.sectionno, m.uwyear, m.accperiod , m.buscurrency, m.balance1, m.acccurrency, m.balance, m.serialbalance , m.freinsbalance, m.reinsurerbalance, m.busandaccexchrate, m.codeename, m.acckinds , m.taxflag, m.withholdflag, m.accreinscode, m.codecname, m.writtendate , m.yourref, m.youraccno, m.payno, m.settlestatus, m.letter , m.writeflag, m.writeoffflag, row_number() over (order by m.codecname, m.uwyear, m.drcertifyno, m.payno, m.freinscode, m.insuredname, m.buscurrency, m.balance1) as serialno, m.settleapplyno , m.settleapplystatus from ( select h.freinsname, h.freinscode, h.insuredname, h.accno, h.riskcode , h.riskname, h.acckind, h.repolicyno, h.recertifyno, h.drcertifyno , h.settledate, h.treatyno, h.sectionno, h.uwyear, h.accperiod , h.buscurrency, h.busbalance as balance1, h.acccurrency, h.accbalance as balance , ( select sum(accbalance) from fzplanmain x where x.accno = h.accno and x.payno = h.payno ) as serialbalance, h.freinsbalance, h.reinsurerbalance, h.busandaccexchrate, h.acckinds , h.taxflag, h.withholdflag, h.accreinscode, h.writtendate, h.yourref , h.youraccno, h.writeflag , case h.facflag when '1' then concat('特约-', e.codeename) else e.codeename end as codeename , e.codecname, h.settlestatus, h.payno, h.letter, h.writeoffflag , h.settleapplyno, h.settleapplystatus from ( select b.longname as freinsname, a.freinscode, c.opttype, c.insuredname, c.accno , c.riskcode, d.riskcname as riskname , concat(concat('临分', '-'), case c.acckind when 'p' then '保单' when 'h' then '保单' when 'e' then '批单' when 'j' then '批单' when 'c' then '赔案' when 'k' then '赔案' else null end) as acckind , c.repolicyno, c.recertifyno, c.drcertifyno, a.settledate, null as treatyno , null as sectionno, c.uwyear, c.writeflag, concat(a.payno, null) as accperiod , c.busbalance, c.accbalance , sum(a.accbalance) - sum(a.accpaidvalue) as freinsbalance , sum(a.busbalance) - sum(a.buspaidvalue) as reinsurerbalance , a.buscurrency, a.acccurrency, a.busandaccexchrate, c.acckind as acckinds, c.taxflag , c.withholdflag, c.accreinscode, c.writtendate, c.yourref, c.youraccno , a.settlestatus, a.payno, c.acctype, c.facflag, 'c' as letter , case c.writeoffflag when '0' then null when '1' then '冲销账' else '冲销账' end as writeoffflag , a.settleapplyno, a.settleapplystatus from fzacc c join fdrisk d on c.riskcode = d.riskcode join fzplanmain a on a.accno = c.accno left join fdreins b on a.freinscode = b.reinscode where c.opttype = null and c.confirmstate = '1' and c.acctype = '10' group by c.opttype, b.longname, a.freinscode, c.insuredname, c.accno, c.riskcode, d.riskcname, c.repolicyno, c.recertifyno, c.drcertifyno, a.settledate, c.treatyno, c.sectionno, c.uwyear, a.buscurrency, a.acccurrency, a.busandaccexchrate, c.acckind, c.taxflag, c.withholdflag, c.accreinscode, c.writtendate, c.yourref, c.youraccno, a.settlestatus, a.payno, c.acctype, c.facflag, c.writeoffflag, c.writeflag, a.settleapplyno, a.settleapplystatus, a.accbalance, a.busbalance, a.accpaidvalue, a.buspaidvalue, c.accbalance, c.busbalance ) h left join fdcode e on h.acckinds = e.codetype and h.acctype = e.codecode and h.opttype = e.codedesc and e.newcodecode = 'fdsettleconfig' ) m where 1 = 1 and m.settlestatus in ('0', '1') and str_to_date(date_format(m.settledate, '%y-%m-%d'), '%y-%m-%d') <= str_to_date(date_format(null, '%y-%m-%d'), '%y-%m-%d') ) x where x.freinsbalance <> 0 or x.reinsurerbalance <> 0 order by case x.acccurrency when 'cny' then '1' when 'usd' then '2' else x.acccurrency end, x.letter, x.serialno
 
-- comment: 分出临分登记信息查询
+- comment: 复杂SQL-4
   oracle_sql: >
     select
       aa.*,
@@ -1844,7 +1575,7 @@
       aa.layerno asc
   tidb_sql: >
     select aa.* , ( select min(createdate) from reinsvalidenquiryregister where aa.sequenceno = sequenceno group by sequenceno ) as createdate from ( select str_to_date(date_format(a.closedate, '%y-%m-%d'), '%y-%m-%d') as closedate , case c.riskunitcode when '0' then '整单' else c.riskunitcode end as riskunitcode , c.layerno , case c.riskunitcode when '0' then ( select sum(ss.sharerate) / count(distinct ss.riskunitcode) from reinsshare ss where ss.reinsmode in ('181', '182') and ss.validflag = '1' and ss.drecertifyno = c.certifyno ) else ( select sum(ss.sharerate) from reinsshare ss where ss.reinsmode in ('181', '182') and ss.validflag = '1' and ss.drecertifyno = c.certifyno and ss.riskunitcode = c.riskunitcode ) end as retrate , 100 as retallrate , case c.sumfacshare when null then 0 else c.sumfacshare end as signedlineown , str_to_date(date_format(c.facconfirmdate, '%y-%m-%d'), '%y-%m-%d') as facconfirmdate , case l.locationflag when 'd' then '否' when 'f' then '是' else null end as withholdflag , b.recertifyno as recertifyno, c.cutthroughflag as cutthroughflag, a.sequenceno as sequenceno , case c.signdate when null then '已录单' else '归档完毕' end as businessstatus , case a.isbranch when '1' then '是' else '否' end as isbranch , a.businessstatusdesc as businessstatusdesc, fd.categoryname as classcode, fd.riskcname as riskname, a.branchname, a.reportno as reportno , a.branchoperatorname as branchoperatorname, a.operatorname as operatorname, a.itemname as itemname, a.riskclassname as riskclassname, a.faccodename as faccodename , case c.currency when null then null else c.currency end as currency , case c.gbbaseshare when null then 0 else c.gbbaseshare end as coinsrate , c.reinscode , ( select fdr.longname from fdreins fdr where fdr.reinscode = c.reinscode ) as reinsname, c.freinscode , ( select fdr.longname from fdreins fdr where fdr.reinscode = c.freinscode ) as freinsname, c.accreinscode as accreinscode , ( select fdr.longname from fdreins fdr where fdr.reinscode = c.accreinscode ) as accreinsname, c.brokercode , ( select fdr.longname from fdreins fdr where fdr.reinscode = c.brokercode ) as brokername, c.diffflag, c.certifyno as certifyno , case c.endorno when null then 'p' else 'e' end as certitype , a.closecodename as closecode, null as enquiryinputdate, null as accinputdate, null as accpaymentcode, null as accpaymentdate , null as telno, c.accremarks, c.facslipflag, c.facslipdate, c.factype , case b.amount when null then 0 else b.amount end as amount , case b.premium when null then 0 else b.premium end as premium , case b.notaxpremium when null then 0 else b.notaxpremium end as notaxpremium , case b.baseamount when null then 0 else b.baseamount end as baseamount , case b.basepremium when null then 0 else b.basepremium end as basepremium , case b.notaxbasepremium when null then 0 else b.notaxbasepremium end as notaxbasepremium , case c.sumfacshare when null then 0 else c.sumfacshare end as outsignedline , case c.outamount when null then 0 else c.outamount end as outamount , case c.outpremium when null then 0 else c.outpremium end as outpremium , case c.notaxoutpremium when null then 0 else c.notaxoutpremium end as notaxoutpremium , d.amount as retenamount, d.premium as retenpremium, a.claimcondition as claimcondition , case a.offeredline when null then 0 else a.offeredline end as offeredline , case c.sumfacshare * c.gbbaseshare / 100 when null then 0 else c.sumfacshare * c.gbbaseshare / 100 end as signedline , c.specialfacflag , case c.writtenline when null then 0 else c.writtenline end as writtenline , case c.baseshare when null then 0 else c.baseshare end as baseshare , case c.commrate when null then 0 else c.commrate end as commrate , 0 as outsumpremium, 0 as commission, 0 as taxfee, 0 as addtaxfee, 0 as otherfee , 0 as balance, date_format(c.startdate, '%y-%m-%d') as startdate , date_format(c.enddate, '%y-%m-%d') as enddate, null as executiveremark , a.remarks as remarks, c.facilitycode as facilitycode, a.firstdate as firstdate, a.notaskreason as notaskreason, a.takedate as takedate , a.afterdate as afterdate, a.taskenddate as taskenddate, c.verifydate as verifydate, c.underwriteenddate as underwriteenddate from reinsenquiryregisterbinding b join ( select r.sequenceno, r.classcode, r.riskcode, r.comcode, e.signdate , null as layerno, r.verifydate as facconfirmdate, e.enquiryno, e.endorno, r.sumamount as sumamount , r.sumpremium as sumpremium, r.baseshare as gbbaseshare, r.specialfacshare as specialfacshare, r.facshare as facshare, r.sumfacshare as sumfacshare , case r.enquirytype when 'p' then r.policyno when 'e' then r.endorno else r.endorno end as certifyno , r.riskunitcode as riskunitcode, r.currency as currency, e.reinscode as reinscode, e.accreinscode as accreinscode, e.accreinsname as accreinsname , e.reinsname as reinsname, e.finalreinscode as freinscode, e.finalreinsname as freinsname, e.brokercode as brokercode, e.brokername as brokername , e.diffflag as diffflag, null as accremarks , case e.signdate when null then '否' else '是' end as facslipflag , date_format(e.signdate, 'yyyy-mm') as facslipdate , case r.enquirytype when 'p' then e.amount when 'e' then e.chgamount else 0 end as outamount , case r.enquirytype when 'p' then e.premium when 'e' then e.chgpremium else 0 end as outpremium , case r.enquirytype when 'p' then e.notaxpremium when 'e' then e.chgnotaxpremium else 0 end as notaxoutpremium , e.vatfee as taxfee , case e.facflag when '1' then '是' else '否' end as specialfacflag , ifnull(e.signedline, 0) * ifnull(r.baseshare, 0) / 100 as writtenline , ifnull(e.signedline, 0) as baseshare, e.signedcomm as commrate , e.premium * e.signedcomm / 100 as commission, null as facilitycode , '比例临分' as factype, r.startdate, r.enddate, e.cutthroughflag as cutthroughflag , case r.verifyflag when 3 then verifydate else null end as verifydate , case r.enquirytype when 'p' then punit.underwriteenddate when 'e' then eunit.underwriteenddate else null end as underwriteenddate , ( select case when count(1) = 0 then now() else max(writtendate) end as writtendate from fzacc acc where ((r.policyno = acc.drcertifyno and r.enquirytype = 'p') or (r.endorno = acc.drcertifyno and r.enquirytype = 'e')) and e.accreinscode = acc.accreinscode and e.withholdflag = acc.withholdflag ) as writtendate from reinsendorunit eunit right join reinsvalidenquiry r on r.endorno = eunit.endorno left join reinspolicyunit punit on r.policyno = punit.policyno join reinsvalidreceive e on r.enquiryno = e.enquiryno and r.versionno = e.versionno where e.versiondesc <> ' ' and r.sequenceno <> ' ' and r.validflag = '1' union all select r.sequenceno, r.classcode, r.riskcode, r.comcode, f.signdate , f.layerno as layerno, r.verifydate as facconfirmdate, f.enquiryno, r.endorno, r.sumamount as sumamount , r.sumpremium as sumpremium, r.baseshare as gbbaseshare, r.specialfacshare as specialfacshare, r.facshare as facshare, 0 as sumfacshare , case r.enquirytype when 'p' then r.policyno when 'e' then r.endorno else r.endorno end as certifyno , r.riskunitcode as riskunitcode, r.currency as currency, f.reinscode as reinscode, f.accreinscode as accreinscode, f.accreinsname as accreinsname , f.reinsname as reinsname, f.freinscode as freinscode, f.freinsname as freinsname, f.brokercode as brokercode, f.brokername as brokername , case f.diffflag when '1' then '费率差异' else '无差异' end as diffflag , null as accremarks, null as facslipflag, null as facslipdate, 0 as outamount , case r.enquirytype when 'p' then f.premium when 'e' then f.chgpreium else 0 end as outpremium , case r.enquirytype when 'p' then f.notaxpremium when 'e' then f.chgextaxpremium else 0 end as notaxoutpremium , f.vat as taxfee , case f.facflag when '1' then '是' else '否' end as specialfacflag , ifnull(f.sharerate, 0) as writtenline , ifnull(f.sharerate, 0) as baseshare , case f.commissionsrate when null then 0 else f.commissionsrate end as commrate , f.premium * f.commissionsrate as commission, null as facilitycode, '非比例临分' as factype , r.startdate, r.enddate, '0' as cutthroughflag , case r.verifyflag when 3 then verifydate else null end as verifydate , case r.enquirytype when 'p' then punit.underwriteenddate when 'e' then eunit.underwriteenddate else null end as underwriteenddate , ( select case when count(1) = 0 then now() else max(writtendate) end as writtendate from fzacc acc where ((r.policyno = acc.drcertifyno and r.enquirytype = 'p') or (r.endorno = acc.drcertifyno and r.enquirytype = 'e')) and f.accreinscode = acc.accreinscode and f.withholdflag = acc.withholdflag and f.layerno = acc.sectionno ) as writtendate from reinsendorunit eunit right join reinsvalidenquiry r on r.endorno = eunit.endorno left join reinspolicyunit punit on r.policyno = punit.policyno join reinsvalidxolreceive f on r.enquiryno = f.enquiryno and r.versionno = f.versionno where f.versiondesc <> ' ' and r.sequenceno <> ' ' and r.validflag = '1' ) c on c.certifyno = b.certifyno and c.riskunitcode = b.riskunitcode join reinsvalidenquiryregister a on a.sequenceno = b.sequenceno and a.versionno = b.versionno and a.sequenceno = c.sequenceno left join fdcompany company on a.branchcode = company.comcode join fdreins l on l.reinscode = c.freinscode left join fdrisk fd on c.riskcode = fd.riskcode left join ( select drcertifyno, riskunitcode, sum(amount) as amount , sum(premium) as premium from reinsretenshare group by drcertifyno, riskunitcode union all select drcertifyno, '0', sum(amount) as amount , sum(premium) as premium from reinsretenshare group by drcertifyno ) d on c.certifyno = d.drcertifyno and c.riskunitcode = d.riskunitcode where fd.validstatus = '1' and a.validflag = '1' and a.branchcode in ( select comcode from fdcompany where compath like '%11000000%' ) union all select a.closedate as closedate, null as riskunitcode, c.layerno , case c.factype when '比例临分' then a.retenshare / a.coinsrate * 100 else 0 end as retrate , ifnull(a.retenshare, 0) as retallrate , case a.signedline when null then 0 else a.signedline / a.coinsrate * 100 end as signedlineown , null as facconfirmdate , case ( select distinct l.locationflag from fdreins l where l.reinscode = c.freinscode ) when 'd' then '否' when 'f' then '是' else null end as withholdflag , null as recertifyno, null as cutthroughflag, a.sequenceno as sequenceno, a.businessstatusname as businessstatus , case a.isbranch when '1' then '是' else '否' end as isbranch , a.businessstatusdesc as businessstatusdesc, a.classname as classcode, null as riskname, a.branchname as branchname, a.reportno as reportno , a.branchoperatorname as branchoperatorname, a.operatorname as operatorname, a.itemname as itemname, a.riskclassname as riskclassname, a.faccodename as faccodename , case a.currency when null then null else a.currency end as currency , case a.coinsrate when null then 0 else a.coinsrate end as coinsrate , c.reinscode, c.reinsname, c.freinscode, c.freinsname, c.accreinscode as accreinscode , c.accreinsname, c.brokercode, c.brokername, c.diffflag, null as certifyno , null as certitype, a.closecodename as closecode, null as enquiryinputdate, null as accinputdate, null as accpaymentcode , null as accpaymentdate, c.telno as telno, c.accremarks, c.facslipflag, c.facslipdate , c.factype , case a.amount when null then 0 else a.amount end as amount , case a.premium when null then 0 else a.premium end as premium , case a.notaxpremium when null then 0 else a.notaxpremium end as notaxpremium , case a.baseamount when null then 0 else a.baseamount end as baseamount , case a.basepremium when null then 0 else a.basepremium end as basepremium , case a.notaxbasepremium when null then 0 else a.notaxbasepremium end as notaxbasepremium , case c.outsignedline when null then 0 else c.outsignedline end as outsignedline , case c.outamount when null then 0 else c.outamount end as outamount , case c.outpremium when null then 0 else c.outpremium end as outpremium , case c.notaxoutpremium when null then 0 else c.notaxoutpremium end as notaxoutpremium , case a.retenamount when null then 0 else a.retenamount end as retenamount , case a.retenpremium when null then 0 else a.retenpremium end as retenpremium , a.claimcondition as claimcondition , case a.offeredline when null then 0 else a.offeredline end as offeredline , case c.signedline when null then 0 else c.signedline end as signedline , c.specialfacflag , case c.writtenline when null then 0 else c.writtenline end as writtenline , case c.baseshare when null then 0 else c.baseshare end as baseshare , case c.commrate when null then 0 else c.commrate end as commrate , case c.notaxoutpremium when null then 0 else c.notaxoutpremium end as outsumpremium , case c.commission when null then 0 else c.commission end as commission , 0 as taxfee, 0 as addtaxfee, 0 as otherfee, 0 as balance , date_format(a.startdate, '%y-%m-%d') as startdate , date_format(a.enddate, '%y-%m-%d') as enddate, null as executiveremark , a.remarks as remarks, c.facilitycode as facilitycode, a.firstdate as firstdate, a.notaskreason as notaskreason, a.takedate as takedate , null as afterdate, a.taskenddate as taskenddate, null as verifydate, null as underwriteenddate from reinsvalidenquiryregister a left join ( select null as layerno, r.telno, e.sequenceno, r.reinscode as reinscode, r.reinsname as reinsname , r.freinscode as freinscode, r.freinsname as freinsname, r.accreinscode as accreinscode, r.accreinsname, r.brokercode , r.brokername, r.diffflag as diffflag, r.accremarks as accremarks , case r.facslipflag when 1 then '是' else '否' end as facslipflag , date_format(r.facslipdate, 'yyyy-mm') as facslipdate, r.amount as outamount , r.premium as outpremium, r.notaxpremium as notaxoutpremium , case r.specialfacflag when '1' then '是' else '否' end as specialfacflag , r.writtenline as writtenline, ifnull(r.baseshare, 0) as baseshare , case r.commrate when null then 0 else r.commrate end as commrate , case r.commrate when null then 0 else r.commrate end * case r.premium when null then 0 else r.premium end / 100 as commission , case e.signedline when null then 0 else e.signedline end as signedline , case round(e.signedline / e.coinsrate / 100, 6) when null then 0 else round(e.signedline / e.coinsrate / 100, 6) end as outsignedline , r.facilitycode as facility, null as facilitycode, '比例临分' as factype from reinsvalidenquiryregister e join reinsvalidenquiryregisterreins r on r.sequenceno = e.sequenceno and r.versionno = e.versionno where e.validflag = '1' union all select f.layerno as layerno, f.telno, r.sequenceno, f.reinscode as reinscode, f.reinsname as reinsname , f.freinscode as freinscode, f.freinsname as freinsname, f.accreinscode as accreinscode, f.accreinsname, f.brokercode , f.brokername , case f.diffflag when '1' then '费率差异' else '无差异' end as diffflag , f.accremarks as accremarks , case f.facslipflag when 1 then '是' else '否' end as facslipflag , date_format(f.facslipdate, 'yyyy-mm') as facslipdate, 0 as outamount , f.repremium as outpremium, f.notaxrepremium as notaxoutpremium , case f.specialfacflag when '1' then '是' else '否' end as specialfacflag , ifnull(f.signedline, 0) as writtenline, 0 as baseshare , case f.commrate when null then 0 else f.commrate end as commrate , case f.commrate when null then 0 else f.commrate end * case f.repremium when null then 0 else f.repremium end / 100 as commission , 0 as signedline, 0 as outsignedline, f.facilitycode as facility, null as facilitycode, '非比例临分' as factype from reinsvalidenquiryregisterxreins f join reinsvalidenquiryregister r on r.sequenceno = f.sequenceno and r.versionno = f.versionno where r.validflag = '1' ) c on a.sequenceno = c.sequenceno where a.validflag = '1' and a.branchcode in ( select comcode from fdcompany where compath like '%11000000%' ) and not exists ( select 1 from reinsenquiryregisterbinding f where a.sequenceno = f.sequenceno ) ) aa where 1 = 1 order by aa.sequenceno asc, aa.layerno asc
-- comment: 分出临分登记信息导出 --- 分保部分
+- comment: 复杂SQL-5
   oracle_sql: >
     select
       aa.*,
@@ -2629,8 +2360,8 @@
       aa.facType                                        ,
       aa.layerno asc
   tidb_sql: >
-    select aa.* , ( select min(s.createdate) from reinsvalidenquiryregister s where aa.sequenceno = s.sequenceno group by s.sequenceno ) as createdate , ( select concat(concat(concat(concat(concat(concat(max(case bb.businessstatus when '1' then bb.businessstatusname else null end), max(case bb.businessstatus when '2' then concat('->', bb.businessstatusname) else null end)), max(case bb.businessstatus when '3' then concat('->', bb.businessstatusname) else null end)), max(case bb.businessstatus when '4' then concat('->', bb.businessstatusname) else null end)), max(case bb.businessstatus when '5' then concat('->', bb.businessstatusname) else null end)), max(case bb.businessstatus when '6' then concat('->', bb.businessstatusname) else null end)), max(case bb.businessstatus when '7' then concat('->', bb.businessstatusname) else null end)) as workflow from reinsvalidenquiryregisterverify bb where bb.sequenceno = aa.sequenceno group by bb.sequenceno ) as workflow from ( select str_to_date(date_format(a.closedate, '%y-%m-%d'), '%y-%m-%d') as closedate , case c.riskunitcode when '0' then '整单' else c.riskunitcode end as riskunitcode , c.layerno , case c.riskunitcode when '0' then ( select sum(ss.sharerate) / count(distinct ss.riskunitcode) from reinsshare ss where ss.reinsmode in ('181', '182') and ss.validflag = '1' and ss.drecertifyno = c.certifyno ) else ( select sum(ss.sharerate) from reinsshare ss where ss.reinsmode in ('181', '182') and ss.validflag = '1' and ss.drecertifyno = c.certifyno and ss.riskunitcode = c.riskunitcode ) end as retrate , 100 as retallrate , case c.sumfacshare when null then 0 else c.sumfacshare end as signedlineown , str_to_date(date_format(c.facconfirmdate, '%y-%m-%d'), '%y-%m-%d') as facconfirmdate , case l.locationflag when 'd' then '否' when 'f' then '是' else null end as withholdflag , b.recertifyno as recertifyno, c.cutthroughflag as cutthroughflag, a.sequenceno as sequenceno , case c.signdate when null then '已录单' else '归档完毕' end as businessstatus , case a.isbranch when '1' then '是' else '否' end as isbranch , a.businessstatusdesc as businessstatusdesc, fd.categoryname as classcode, fd.riskcname as riskname, a.branchname, a.reportno as reportno , a.branchoperatorname as branchoperatorname, a.operatorname as operatorname, a.itemname as itemname, a.riskclassname as riskclassname, a.faccodename as faccodename , case c.currency when null then null else c.currency end as currency , case c.gbbaseshare when null then 0 else c.gbbaseshare end as coinsrate , c.reinscode , ( select fdr.longname from fdreins fdr where fdr.reinscode = c.reinscode ) as reinsname, c.freinscode , ( select fdr.longname from fdreins fdr where fdr.reinscode = c.freinscode ) as freinsname, c.accreinscode as accreinscode , ( select fdr.longname from fdreins fdr where fdr.reinscode = c.accreinscode ) as accreinsname, c.brokercode , ( select fdr.longname from fdreins fdr where fdr.reinscode = c.brokercode ) as brokername, c.diffflag, c.certifyno as certifyno , case c.endorno when null then 'p' else 'e' end as certitype , a.closecodename as closecode, null as enquiryinputdate, null as accinputdate, null as accpaymentcode, null as accpaymentdate , null as telno, c.accremarks, c.facslipflag, c.facslipdate, c.factype , case b.amount when null then 0 else b.amount end as amount , case b.premium when null then 0 else b.premium end as premium , case b.notaxpremium when null then 0 else b.notaxpremium end as notaxpremium , case b.baseamount when null then 0 else b.baseamount end as baseamount , case b.basepremium when null then 0 else b.basepremium end as basepremium , case b.notaxbasepremium when null then 0 else b.notaxbasepremium end as notaxbasepremium , case c.sumfacshare when null then 0 else c.sumfacshare end as outsignedline , case c.outamount when null then 0 else c.outamount end as outamount , case c.outpremium when null then 0 else c.outpremium end as outpremium , case c.notaxoutpremium when null then 0 else c.notaxoutpremium end as notaxoutpremium , d.amount as retenamount, d.premium as retenpremium, a.claimcondition as claimcondition , case a.offeredline when null then 0 else a.offeredline end as offeredline , case c.sumfacshare * c.gbbaseshare / 100 when null then 0 else c.sumfacshare * c.gbbaseshare / 100 end as signedline , c.specialfacflag , case c.writtenline when null then 0 else c.writtenline end as writtenline , case c.baseshare when null then 0 else c.baseshare end as baseshare , case c.commrate when null then 0 else c.commrate end as commrate , 0 as outsumpremium, 0 as commission, 0 as taxfee, 0 as addtaxfee, 0 as otherfee , 0 as balance, date_format(c.startdate, '%y-%m-%d') as startdate , date_format(c.enddate, '%y-%m-%d') as enddate, null as executiveremark , a.remarks as remarks, c.facilitycode as facilitycode, a.firstdate as firstdate, a.notaskreason as notaskreason, a.takedate as takedate , a.afterdate as afterdate, a.taskenddate as taskenddate, c.verifydate as verifydate, c.underwriteenddate as underwriteenddate, c.underwriteenddate as operatedate , case a.businessstatus when '1' then concat(b.bindversionno, '(排分中)') else concat(b.bindversionno, '(排分中已获得承保能力)') end as versionno , a.validstatus from reinsenquiryregisterbinding b join ( select r.sequenceno, r.classcode, r.riskcode, r.comcode, e.signdate , null as layerno, r.verifydate as facconfirmdate, e.enquiryno, e.endorno, r.sumamount as sumamount , r.sumpremium as sumpremium, r.baseshare as gbbaseshare, r.specialfacshare as specialfacshare, r.facshare as facshare, r.sumfacshare as sumfacshare , case r.enquirytype when 'p' then r.policyno when 'e' then r.endorno else r.endorno end as certifyno , r.riskunitcode as riskunitcode, r.currency as currency, e.reinscode as reinscode, e.accreinscode as accreinscode, e.accreinsname as accreinsname , e.reinsname as reinsname, e.finalreinscode as freinscode, e.finalreinsname as freinsname, e.brokercode as brokercode, e.brokername as brokername , e.diffflag as diffflag, null as accremarks , case e.signdate when null then '否' else '是' end as facslipflag , date_format(e.signdate, 'yyyy-mm') as facslipdate , case r.enquirytype when 'p' then e.amount when 'e' then e.chgamount else 0 end as outamount , case r.enquirytype when 'p' then e.premium when 'e' then e.chgpremium else 0 end as outpremium , case r.enquirytype when 'p' then e.notaxpremium when 'e' then e.chgnotaxpremium else 0 end as notaxoutpremium , e.vatfee as taxfee , case e.facflag when '1' then '是' else '否' end as specialfacflag , ifnull(e.signedline, 0) * ifnull(r.baseshare, 0) / 100 as writtenline , ifnull(e.signedline, 0) as baseshare, e.signedcomm as commrate , e.premium * e.signedcomm / 100 as commission, null as facilitycode , '比例临分' as factype, r.startdate, r.enddate, e.cutthroughflag as cutthroughflag , case r.verifyflag when 3 then verifydate else null end as verifydate , case r.enquirytype when 'p' then punit.underwriteenddate when 'e' then eunit.underwriteenddate else null end as underwriteenddate , ( select case when count(1) = 0 then now() else max(writtendate) end as writtendate from fzacc acc where ((r.policyno = acc.drcertifyno and r.enquirytype = 'p') or (r.endorno = acc.drcertifyno and r.enquirytype = 'e')) and e.accreinscode = acc.accreinscode and e.withholdflag = acc.withholdflag ) as writtendate from reinsendorunit eunit right join reinsvalidenquiry r on r.endorno = eunit.endorno left join reinspolicyunit punit on r.policyno = punit.policyno join reinsvalidreceive e on r.enquiryno = e.enquiryno and r.versionno = e.versionno where e.versiondesc <> ' ' and r.sequenceno <> ' ' and r.validflag = '1' union all select r.sequenceno, r.classcode, r.riskcode, r.comcode, f.signdate , f.layerno as layerno, r.verifydate as facconfirmdate, f.enquiryno, r.endorno, r.sumamount as sumamount , r.sumpremium as sumpremium, r.baseshare as gbbaseshare, r.specialfacshare as specialfacshare, r.facshare as facshare, 0 as sumfacshare , case r.enquirytype when 'p' then r.policyno when 'e' then r.endorno else r.endorno end as certifyno , r.riskunitcode as riskunitcode, r.currency as currency, f.reinscode as reinscode, f.accreinscode as accreinscode, f.accreinsname as accreinsname , f.reinsname as reinsname, f.freinscode as freinscode, f.freinsname as freinsname, f.brokercode as brokercode, f.brokername as brokername , case f.diffflag when '1' then '费率差异' else '无差异' end as diffflag , null as accremarks, null as facslipflag, null as facslipdate, 0 as outamount , case r.enquirytype when 'p' then f.premium when 'e' then f.chgpreium else 0 end as outpremium , case r.enquirytype when 'p' then f.notaxpremium when 'e' then f.chgextaxpremium else 0 end as notaxoutpremium , f.vat as taxfee , case f.facflag when '1' then '是' else '否' end as specialfacflag , ifnull(f.sharerate, 0) as writtenline , ifnull(f.sharerate, 0) as baseshare , case f.commissionsrate when null then 0 else f.commissionsrate end as commrate , f.premium * f.commissionsrate as commission, null as facilitycode, '非比例临分' as factype , r.startdate, r.enddate, '0' as cutthroughflag , case r.verifyflag when 3 then verifydate else null end as verifydate , case r.enquirytype when 'p' then punit.underwriteenddate when 'e' then eunit.underwriteenddate else null end as underwriteenddate , ( select case when count(1) = 0 then now() else max(writtendate) end as writtendate from fzacc acc where ((r.policyno = acc.drcertifyno and r.enquirytype = 'p') or (r.endorno = acc.drcertifyno and r.enquirytype = 'e')) and f.accreinscode = acc.accreinscode and f.withholdflag = acc.withholdflag and f.layerno = acc.sectionno ) as writtendate from reinsendorunit eunit right join reinsvalidenquiry r on r.endorno = eunit.endorno left join reinspolicyunit punit on r.policyno = punit.policyno join reinsvalidxolreceive f on r.enquiryno = f.enquiryno and r.versionno = f.versionno where f.versiondesc <> ' ' and r.sequenceno <> ' ' and r.validflag = '1' ) c on c.certifyno = b.certifyno and c.riskunitcode = b.riskunitcode join reinsvalidenquiryregister a on a.sequenceno = b.sequenceno and a.versionno = b.versionno and a.sequenceno = c.sequenceno join fdcompany company on company.comcode = a.branchcode join reinsvalidenquiryregisterverify verify on a.sequenceno = verify.sequenceno and a.versionno = verify.versionno join fdreins l on l.reinscode = c.freinscode join fdrisk fd on fd.riskcode = c.riskcode left join ( select drcertifyno, riskunitcode, sum(amount) as amount , sum(premium) as premium from reinsretenshare group by drcertifyno, riskunitcode union all select drcertifyno, '0', sum(amount) as amount , sum(premium) as premium from reinsretenshare group by drcertifyno ) d on c.certifyno = d.drcertifyno and c.riskunitcode = d.riskunitcode where fd.validstatus = '1' and a.validflag = '1' and a.branchcode in ( select comcode from fdcompany where compath like '%11000000%' ) union all select a.closedate as closedate, null as riskunitcode, c.layerno , case c.factype when '比例临分' then a.retenshare / a.coinsrate * 100 else 0 end as retrate , ifnull(a.retenshare, 0) as retallrate , case a.signedline when null then 0 else a.signedline / a.coinsrate * 100 end as signedlineown , null as facconfirmdate , case ( select distinct l.locationflag from fdreins l where l.reinscode = c.freinscode ) when 'd' then '否' when 'f' then '是' else null end as withholdflag , null as recertifyno, null as cutthroughflag, a.sequenceno as sequenceno, a.businessstatusname as businessstatus , case a.isbranch when '1' then '是' else '否' end as isbranch , a.businessstatusdesc as businessstatusdesc, a.classname as classcode, null as riskname, a.branchname as branchname, a.reportno as reportno , a.branchoperatorname as branchoperatorname, a.operatorname as operatorname, a.itemname as itemname, a.riskclassname as riskclassname, a.faccodename as faccodename , case a.currency when null then null else a.currency end as currency , case a.coinsrate when null then 0 else a.coinsrate end as coinsrate , c.reinscode, c.reinsname, c.freinscode, c.freinsname, c.accreinscode as accreinscode , c.accreinsname, c.brokercode, c.brokername, c.diffflag, null as certifyno , null as certitype, a.closecodename as closecode, null as enquiryinputdate, null as accinputdate, null as accpaymentcode , null as accpaymentdate, c.telno as telno, c.accremarks, c.facslipflag, c.facslipdate , c.factype , case a.amount when null then 0 else a.amount end as amount , case a.premium when null then 0 else a.premium end as premium , case a.notaxpremium when null then 0 else a.notaxpremium end as notaxpremium , case a.baseamount when null then 0 else a.baseamount end as baseamount , case a.basepremium when null then 0 else a.basepremium end as basepremium , case a.notaxbasepremium when null then 0 else a.notaxbasepremium end as notaxbasepremium , case c.outsignedline when null then 0 else c.outsignedline end as outsignedline , case c.outamount when null then 0 else c.outamount end as outamount , case c.outpremium when null then 0 else c.outpremium end as outpremium , case c.notaxoutpremium when null then 0 else c.notaxoutpremium end as notaxoutpremium , case a.retenamount when null then 0 else a.retenamount end as retenamount , case a.retenpremium when null then 0 else a.retenpremium end as retenpremium , a.claimcondition as claimcondition , case a.offeredline when null then 0 else a.offeredline end as offeredline , case c.signedline when null then 0 else c.signedline end as signedline , c.specialfacflag , case c.writtenline when null then 0 else c.writtenline end as writtenline , case c.baseshare when null then 0 else c.baseshare end as baseshare , case c.commrate when null then 0 else c.commrate end as commrate , case c.notaxoutpremium when null then 0 else c.notaxoutpremium end as outsumpremium , case c.commission when null then 0 else c.commission end as commission , 0 as taxfee, 0 as addtaxfee, 0 as otherfee, 0 as balance , date_format(a.startdate, '%y-%m-%d') as startdate , date_format(a.enddate, '%y-%m-%d') as enddate, null as executiveremark , a.remarks as remarks, c.facilitycode as facilitycode, a.firstdate as firstdate, a.notaskreason as notaskreason, a.takedate as takedate , null as afterdate, a.taskenddate as taskenddate, null as verifydate, null as underwriteenddate, verify.operatedate , case a.businessstatus when '1' then concat(a.versionno, '（排分中)') else concat(a.versionno, '(排分中已获得承保能力)') end as versionno , a.validstatus from reinsvalidenquiryregister a join ( select null as layerno, r.telno, e.sequenceno, r.reinscode as reinscode, r.reinsname as reinsname , r.freinscode as freinscode, r.freinsname as freinsname, r.accreinscode as accreinscode, r.accreinsname, r.brokercode , r.brokername, r.diffflag as diffflag, r.accremarks as accremarks , case r.facslipflag when 1 then '是' else '否' end as facslipflag , date_format(r.facslipdate, 'yyyy-mm') as facslipdate, r.amount as outamount , r.premium as outpremium, r.notaxpremium as notaxoutpremium , case r.specialfacflag when '1' then '是' else '否' end as specialfacflag , r.writtenline as writtenline, ifnull(r.baseshare, 0) as baseshare , case r.commrate when null then 0 else r.commrate end as commrate , case r.commrate when null then 0 else r.commrate end * case r.premium when null then 0 else r.premium end / 100 as commission , case e.signedline when null then 0 else e.signedline end as signedline , case round(e.signedline / e.coinsrate / 100, 6) when null then 0 else round(e.signedline / e.coinsrate / 100, 6) end as outsignedline , r.facilitycode as facility, null as facilitycode, '比例临分' as factype, e.versionno from reinsvalidenquiryregister e join reinsvalidenquiryregisterreins r on r.sequenceno = e.sequenceno and e.versionno = r.versionno union all select f.layerno as layerno, f.telno, r.sequenceno, f.reinscode as reinscode, f.reinsname as reinsname , f.freinscode as freinscode, f.freinsname as freinsname, f.accreinscode as accreinscode, f.accreinsname, f.brokercode , f.brokername , case f.diffflag when '1' then '费率差异' else '无差异' end as diffflag , f.accremarks as accremarks , case f.facslipflag when 1 then '是' else '否' end as facslipflag , date_format(f.facslipdate, 'yyyy-mm') as facslipdate, 0 as outamount , f.repremium as outpremium, f.notaxrepremium as notaxoutpremium , case f.specialfacflag when '1' then '是' else '否' end as specialfacflag , ifnull(f.signedline, 0) as writtenline, 0 as baseshare , case f.commrate when null then 0 else f.commrate end as commrate , case f.commrate when null then 0 else f.commrate end * case f.repremium when null then 0 else f.repremium end / 100 as commission , 0 as signedline, 0 as outsignedline, f.facilitycode as facility, null as facilitycode, '非比例临分' as factype , r.versionno from reinsvalidenquiryregisterxreins f join reinsvalidenquiryregister r on r.sequenceno = f.sequenceno and r.versionno = f.versionno ) c on a.sequenceno = c.sequenceno and a.versionno = c.versionno join reinsvalidenquiryregisterverify verify on a.sequenceno = verify.sequenceno and a.versionno = verify.versionno where 1 = 1 and a.branchcode in ( select comcode from fdcompany where compath like '%11000000%' ) and not exists ( select 1 from reinsenquiryregisterbinding f where a.sequenceno = f.sequenceno and a.versionno = f.bindversionno ) ) aa where 1 = 1 order by aa.sequenceno asc, cast(regexp_substr(aa.versionno, '[0-9]+') as signed integer), aa.certifyno desc, aa.factype, aa.layerno asc
-- comment: 分出临分登记信息导出 --- 我司部分
+    select aa.* , ( select min(s.createdate) from reinsvalidenquiryregister s where aa.sequenceno = s.sequenceno group by s.sequenceno ) as createdate , ( select concat(concat(concat(concat(concat(concat(max(case bb.businessstatus when '1' then bb.businessstatusname else null end), max(case bb.businessstatus when '2' then concat('->', bb.businessstatusname) else null end)), max(case bb.businessstatus when '3' then concat('->', bb.businessstatusname) else null end)), max(case bb.businessstatus when '4' then concat('->', bb.businessstatusname) else null end)), max(case bb.businessstatus when '5' then concat('->', bb.businessstatusname) else null end)), max(case bb.businessstatus when '6' then concat('->', bb.businessstatusname) else null end)), max(case bb.businessstatus when '7' then concat('->', bb.businessstatusname) else null end)) as workflow from reinsvalidenquiryregisterverify bb where bb.sequenceno = aa.sequenceno group by bb.sequenceno ) as workflow from ( select str_to_date(date_format(a.closedate, '%y-%m-%d'), '%y-%m-%d') as closedate , case c.riskunitcode when '0' then '整单' else c.riskunitcode end as riskunitcode , c.layerno , case c.riskunitcode when '0' then ( select sum(ss.sharerate) / count(distinct ss.riskunitcode) from reinsshare ss where ss.reinsmode in ('181', '182') and ss.validflag = '1' and ss.drecertifyno = c.certifyno ) else ( select sum(ss.sharerate) from reinsshare ss where ss.reinsmode in ('181', '182') and ss.validflag = '1' and ss.drecertifyno = c.certifyno and ss.riskunitcode = c.riskunitcode ) end as retrate , 100 as retallrate , case c.sumfacshare when null then 0 else c.sumfacshare end as signedlineown , str_to_date(date_format(c.facconfirmdate, '%y-%m-%d'), '%y-%m-%d') as facconfirmdate , case l.locationflag when 'd' then '否' when 'f' then '是' else null end as withholdflag , b.recertifyno as recertifyno, c.cutthroughflag as cutthroughflag, a.sequenceno as sequenceno , case c.signdate when null then '已录单' else '归档完毕' end as businessstatus , case a.isbranch when '1' then '是' else '否' end as isbranch , a.businessstatusdesc as businessstatusdesc, fd.categoryname as classcode, fd.riskcname as riskname, a.branchname, a.reportno as reportno , a.branchoperatorname as branchoperatorname, a.operatorname as operatorname, a.itemname as itemname, a.riskclassname as riskclassname, a.faccodename as faccodename , case c.currency when null then null else c.currency end as currency , case c.gbbaseshare when null then 0 else c.gbbaseshare end as coinsrate , c.reinscode , ( select fdr.longname from fdreins fdr where fdr.reinscode = c.reinscode ) as reinsname, c.freinscode , ( select fdr.longname from fdreins fdr where fdr.reinscode = c.freinscode ) as freinsname, c.accreinscode as accreinscode , ( select fdr.longname from fdreins fdr where fdr.reinscode = c.accreinscode ) as accreinsname, c.brokercode , ( select fdr.longname from fdreins fdr where fdr.reinscode = c.brokercode ) as brokername, c.diffflag, c.certifyno as certifyno , case c.endorno when null then 'p' else 'e' end as certitype , a.closecodename as closecode, null as enquiryinputdate, null as accinputdate, null as accpaymentcode, null as accpaymentdate , null as telno, c.accremarks, c.facslipflag, c.facslipdate, c.factype , case b.amount when null then 0 else b.amount end as amount , case b.premium when null then 0 else b.premium end as premium , case b.notaxpremium when null then 0 else b.notaxpremium end as notaxpremium , case b.baseamount when null then 0 else b.baseamount end as baseamount , case b.basepremium when null then 0 else b.basepremium end as basepremium , case b.notaxbasepremium when null then 0 else b.notaxbasepremium end as notaxbasepremium , case c.sumfacshare when null then 0 else c.sumfacshare end as outsignedline , case c.outamount when null then 0 else c.outamount end as outamount , case c.outpremium when null then 0 else c.outpremium end as outpremium , case c.notaxoutpremium when null then 0 else c.notaxoutpremium end as notaxoutpremium , d.amount as retenamount, d.premium as retenpremium, a.claimcondition as claimcondition , case a.offeredline when null then 0 else a.offeredline end as offeredline , case c.sumfacshare * c.gbbaseshare / 100 when null then 0 else c.sumfacshare * c.gbbaseshare / 100 end as signedline , c.specialfacflag , case c.writtenline when null then 0 else c.writtenline end as writtenline , case c.baseshare when null then 0 else c.baseshare end as baseshare , case c.commrate when null then 0 else c.commrate end as commrate , 0 as outsumpremium, 0 as commission, 0 as taxfee, 0 as addtaxfee, 0 as otherfee , 0 as balance, date_format(c.startdate, '%y-%m-%d') as startdate , date_format(c.enddate, '%y-%m-%d') as enddate, null as executiveremark , a.remarks as remarks, c.facilitycode as facilitycode, a.firstdate as firstdate, a.notaskreason as notaskreason, a.takedate as takedate , a.afterdate as afterdate, a.taskenddate as taskenddate, c.verifydate as verifydate, c.underwriteenddate as underwriteenddate, c.underwriteenddate as operatedate , case a.businessstatus when '1' then concat(b.bindversionno, '(排分中)') else concat(b.bindversionno, '(排分中已获得承保能力)') end as versionno , a.validstatus from reinsenquiryregisterbinding b join ( select r.sequenceno, r.classcode, r.riskcode, r.comcode, e.signdate , null as layerno, r.verifydate as facconfirmdate, e.enquiryno, e.endorno, r.sumamount as sumamount , r.sumpremium as sumpremium, r.baseshare as gbbaseshare, r.specialfacshare as specialfacshare, r.facshare as facshare, r.sumfacshare as sumfacshare , case r.enquirytype when 'p' then r.policyno when 'e' then r.endorno else r.endorno end as certifyno , r.riskunitcode as riskunitcode, r.currency as currency, e.reinscode as reinscode, e.accreinscode as accreinscode, e.accreinsname as accreinsname , e.reinsname as reinsname, e.finalreinscode as freinscode, e.finalreinsname as freinsname, e.brokercode as brokercode, e.brokername as brokername , e.diffflag as diffflag, null as accremarks , case e.signdate when null then '否' else '是' end as facslipflag , date_format(e.signdate, 'yyyy-mm') as facslipdate , case r.enquirytype when 'p' then e.amount when 'e' then e.chgamount else 0 end as outamount , case r.enquirytype when 'p' then e.premium when 'e' then e.chgpremium else 0 end as outpremium , case r.enquirytype when 'p' then e.notaxpremium when 'e' then e.chgnotaxpremium else 0 end as notaxoutpremium , e.vatfee as taxfee , case e.facflag when '1' then '是' else '否' end as specialfacflag , ifnull(e.signedline, 0) * ifnull(r.baseshare, 0) / 100 as writtenline , ifnull(e.signedline, 0) as baseshare, e.signedcomm as commrate , e.premium * e.signedcomm / 100 as commission, null as facilitycode , '比例临分' as factype, r.startdate, r.enddate, e.cutthroughflag as cutthroughflag , case r.verifyflag when 3 then verifydate else null end as verifydate , case r.enquirytype when 'p' then punit.underwriteenddate when 'e' then eunit.underwriteenddate else null end as underwriteenddate , ( select case when count(1) = 0 then now() else max(writtendate) end as writtendate from fzacc acc where ((r.policyno = acc.drcertifyno and r.enquirytype = 'p') or (r.endorno = acc.drcertifyno and r.enquirytype = 'e')) and e.accreinscode = acc.accreinscode and e.withholdflag = acc.withholdflag ) as writtendate from reinsendorunit eunit right join reinsvalidenquiry r on r.endorno = eunit.endorno left join reinspolicyunit punit on r.policyno = punit.policyno join reinsvalidreceive e on r.enquiryno = e.enquiryno and r.versionno = e.versionno where e.versiondesc <> ' ' and r.sequenceno <> ' ' and r.validflag = '1' union all select r.sequenceno, r.classcode, r.riskcode, r.comcode, f.signdate , f.layerno as layerno, r.verifydate as facconfirmdate, f.enquiryno, r.endorno, r.sumamount as sumamount , r.sumpremium as sumpremium, r.baseshare as gbbaseshare, r.specialfacshare as specialfacshare, r.facshare as facshare, 0 as sumfacshare , case r.enquirytype when 'p' then r.policyno when 'e' then r.endorno else r.endorno end as certifyno , r.riskunitcode as riskunitcode, r.currency as currency, f.reinscode as reinscode, f.accreinscode as accreinscode, f.accreinsname as accreinsname , f.reinsname as reinsname, f.freinscode as freinscode, f.freinsname as freinsname, f.brokercode as brokercode, f.brokername as brokername , case f.diffflag when '1' then '费率差异' else '无差异' end as diffflag , null as accremarks, null as facslipflag, null as facslipdate, 0 as outamount , case r.enquirytype when 'p' then f.premium when 'e' then f.chgpreium else 0 end as outpremium , case r.enquirytype when 'p' then f.notaxpremium when 'e' then f.chgextaxpremium else 0 end as notaxoutpremium , f.vat as taxfee , case f.facflag when '1' then '是' else '否' end as specialfacflag , ifnull(f.sharerate, 0) as writtenline , ifnull(f.sharerate, 0) as baseshare , case f.commissionsrate when null then 0 else f.commissionsrate end as commrate , f.premium * f.commissionsrate as commission, null as facilitycode, '非比例临分' as factype , r.startdate, r.enddate, '0' as cutthroughflag , case r.verifyflag when 3 then verifydate else null end as verifydate , case r.enquirytype when 'p' then punit.underwriteenddate when 'e' then eunit.underwriteenddate else null end as underwriteenddate , ( select case when count(1) = 0 then now() else max(writtendate) end as writtendate from fzacc acc where ((r.policyno = acc.drcertifyno and r.enquirytype = 'p') or (r.endorno = acc.drcertifyno and r.enquirytype = 'e')) and f.accreinscode = acc.accreinscode and f.withholdflag = acc.withholdflag and f.layerno = acc.sectionno ) as writtendate from reinsendorunit eunit right join reinsvalidenquiry r on r.endorno = eunit.endorno left join reinspolicyunit punit on r.policyno = punit.policyno join reinsvalidxolreceive f on r.enquiryno = f.enquiryno and r.versionno = f.versionno where f.versiondesc <> ' ' and r.sequenceno <> ' ' and r.validflag = '1' ) c on c.certifyno = b.certifyno and c.riskunitcode = b.riskunitcode join reinsvalidenquiryregister a on a.sequenceno = b.sequenceno and a.versionno = b.versionno and a.sequenceno = c.sequenceno join fdcompany company on company.comcode = a.branchcode join reinsvalidenquiryregisterverify verify on a.sequenceno = verify.sequenceno and a.versionno = verify.versionno join fdreins l on l.reinscode = c.freinscode join fdrisk fd on fd.riskcode = c.riskcode left join ( select drcertifyno, riskunitcode, sum(amount) as amount , sum(premium) as premium from reinsretenshare group by drcertifyno, riskunitcode union all select drcertifyno, '0', sum(amount) as amount , sum(premium) as premium from reinsretenshare group by drcertifyno ) d on c.certifyno = d.drcertifyno and c.riskunitcode = d.riskunitcode where fd.validstatus = '1' and a.validflag = '1' and a.branchcode in ( select comcode from fdcompany where compath like '%11000000%' ) union all select a.closedate as closedate, null as riskunitcode, c.layerno , case c.factype when '比例临分' then a.retenshare / a.coinsrate * 100 else 0 end as retrate , ifnull(a.retenshare, 0) as retallrate , case a.signedline when null then 0 else a.signedline / a.coinsrate * 100 end as signedlineown , null as facconfirmdate , case ( select distinct l.locationflag from fdreins l where l.reinscode = c.freinscode ) when 'd' then '否' when 'f' then '是' else null end as withholdflag , null as recertifyno, null as cutthroughflag, a.sequenceno as sequenceno, a.businessstatusname as businessstatus , case a.isbranch when '1' then '是' else '否' end as isbranch , a.businessstatusdesc as businessstatusdesc, a.classname as classcode, null as riskname, a.branchname as branchname, a.reportno as reportno , a.branchoperatorname as branchoperatorname, a.operatorname as operatorname, a.itemname as itemname, a.riskclassname as riskclassname, a.faccodename as faccodename , case a.currency when null then null else a.currency end as currency , case a.coinsrate when null then 0 else a.coinsrate end as coinsrate , c.reinscode, c.reinsname, c.freinscode, c.freinsname, c.accreinscode as accreinscode , c.accreinsname, c.brokercode, c.brokername, c.diffflag, null as certifyno , null as certitype, a.closecodename as closecode, null as enquiryinputdate, null as accinputdate, null as accpaymentcode , null as accpaymentdate, c.telno as telno, c.accremarks, c.facslipflag, c.facslipdate , c.factype , case a.amount when null then 0 else a.amount end as amount , case a.premium when null then 0 else a.premium end as premium , case a.notaxpremium when null then 0 else a.notaxpremium end as notaxpremium , case a.baseamount when null then 0 else a.baseamount end as baseamount , case a.basepremium when null then 0 else a.basepremium end as basepremium , case a.notaxbasepremium when null then 0 else a.notaxbasepremium end as notaxbasepremium , case c.outsignedline when null then 0 else c.outsignedline end as outsignedline , case c.outamount when null then 0 else c.outamount end as outamount , case c.outpremium when null then 0 else c.outpremium end as outpremium , case c.notaxoutpremium when null then 0 else c.notaxoutpremium end as notaxoutpremium , case a.retenamount when null then 0 else a.retenamount end as retenamount , case a.retenpremium when null then 0 else a.retenpremium end as retenpremium , a.claimcondition as claimcondition , case a.offeredline when null then 0 else a.offeredline end as offeredline , case c.signedline when null then 0 else c.signedline end as signedline , c.specialfacflag , case c.writtenline when null then 0 else c.writtenline end as writtenline , case c.baseshare when null then 0 else c.baseshare end as baseshare , case c.commrate when null then 0 else c.commrate end as commrate , case c.notaxoutpremium when null then 0 else c.notaxoutpremium end as outsumpremium , case c.commission when null then 0 else c.commission end as commission , 0 as taxfee, 0 as addtaxfee, 0 as otherfee, 0 as balance , date_format(a.startdate, '%y-%m-%d') as startdate , date_format(a.enddate, '%y-%m-%d') as enddate, null as executiveremark , a.remarks as remarks, c.facilitycode as facilitycode, a.firstdate as firstdate, a.notaskreason as notaskreason, a.takedate as takedate , null as afterdate, a.taskenddate as taskenddate, null as verifydate, null as underwriteenddate, verify.operatedate , case a.businessstatus when '1' then concat(a.versionno, '（排分中)') else concat(a.versionno, '(排分中已获得承保能力)') end as versionno , a.validstatus from reinsvalidenquiryregister a left join ( select null as layerno, r.telno, e.sequenceno, r.reinscode as reinscode, r.reinsname as reinsname , r.freinscode as freinscode, r.freinsname as freinsname, r.accreinscode as accreinscode, r.accreinsname, r.brokercode , r.brokername, r.diffflag as diffflag, r.accremarks as accremarks , case r.facslipflag when 1 then '是' else '否' end as facslipflag , date_format(r.facslipdate, 'yyyy-mm') as facslipdate, r.amount as outamount , r.premium as outpremium, r.notaxpremium as notaxoutpremium , case r.specialfacflag when '1' then '是' else '否' end as specialfacflag , r.writtenline as writtenline, ifnull(r.baseshare, 0) as baseshare , case r.commrate when null then 0 else r.commrate end as commrate , case r.commrate when null then 0 else r.commrate end * case r.premium when null then 0 else r.premium end / 100 as commission , case e.signedline when null then 0 else e.signedline end as signedline , case round(e.signedline / e.coinsrate / 100, 6) when null then 0 else round(e.signedline / e.coinsrate / 100, 6) end as outsignedline , r.facilitycode as facility, null as facilitycode, '比例临分' as factype, e.versionno from reinsvalidenquiryregister e join reinsvalidenquiryregisterreins r on r.sequenceno = e.sequenceno and e.versionno = r.versionno union all select f.layerno as layerno, f.telno, r.sequenceno, f.reinscode as reinscode, f.reinsname as reinsname , f.freinscode as freinscode, f.freinsname as freinsname, f.accreinscode as accreinscode, f.accreinsname, f.brokercode , f.brokername , case f.diffflag when '1' then '费率差异' else '无差异' end as diffflag , f.accremarks as accremarks , case f.facslipflag when 1 then '是' else '否' end as facslipflag , date_format(f.facslipdate, 'yyyy-mm') as facslipdate, 0 as outamount , f.repremium as outpremium, f.notaxrepremium as notaxoutpremium , case f.specialfacflag when '1' then '是' else '否' end as specialfacflag , ifnull(f.signedline, 0) as writtenline, 0 as baseshare , case f.commrate when null then 0 else f.commrate end as commrate , case f.commrate when null then 0 else f.commrate end * case f.repremium when null then 0 else f.repremium end / 100 as commission , 0 as signedline, 0 as outsignedline, f.facilitycode as facility, null as facilitycode, '非比例临分' as factype , r.versionno from reinsvalidenquiryregisterxreins f join reinsvalidenquiryregister r on r.sequenceno = f.sequenceno and r.versionno = f.versionno ) c on a.sequenceno = c.sequenceno and a.versionno = c.versionno left join reinsvalidenquiryregisterverify verify on a.sequenceno = verify.sequenceno and a.versionno = verify.versionno where 1 = 1 and a.branchcode in ( select comcode from fdcompany where compath like '%11000000%' ) and not exists ( select 1 from reinsenquiryregisterbinding f where a.sequenceno = f.sequenceno and a.versionno = f.bindversionno ) ) aa where 1 = 1 order by aa.sequenceno asc, cast(regexp_substr(aa.versionno, '[0-9]+') as signed integer), aa.certifyno desc, aa.factype, aa.layerno asc
+- comment: 复杂SQL-6
   oracle_sql: >
     select
       x.sequenceNo                              ,
@@ -2904,4 +2635,177 @@
       x.remarks           ,
       x.validStatus       ,
       x.currencyEnquiry
-  tidb_sql: select x.sequenceno, x.businessstatus, x.businessstatusdesc, x.classname, x.branchname , x.reportno, x.branchoperatorname, x.operatorname, x.itemname, x.isbranch , x.riskclassname, x.faccodename, x.currency, x.coinsrate, x.closecodename , x.createdate, x.closedate, sum(x.amount) as amount , sum(x.premiumbigdecimal) as premiumbigdecimal, sum(x.notaxpremium) as notaxpremium , sum(x.baseamount) as baseamount, sum(x.notaxbasepremium) as notaxbasepremium , sum(outsumpremium) as outsumpremium, x.claimcondition, x.startdatedate , x.enddatedate, x.firstdatelong, x.afterdatelong, x.takedate, x.facofferedrate , x.facabilityrate, x.basefacabilityrate, x.basefacofferedrate, x.remarks, x.validstatus , x.currencyenquiry from ( select a.sequenceno, a.businessstatus, a.businessstatusdesc, a.classname, a.branchname , a.reportno, a.branchoperatorname, a.operatorname, a.itemname, a.isbranch , a.riskclassname, a.faccodename, a.currency, a.coinsrate / 100 as coinsrate , a.closecodename , ( select min(c.createdate) from reinsvalidenquiryregister c where c.sequenceno = a.sequenceno and c.versionno = '1' ) as createdate, a.closedate , ifnull(sum(b.amount), ifnull(a.amount, 0)) as amount , ifnull(sum(b.premium), ifnull(a.premium, 0)) as premiumbigdecimal , ifnull(sum(b.notaxpremium), ifnull(a.notaxpremium, 0)) as notaxpremium , ifnull(sum(b.baseamount), ifnull(a.baseamount, 0)) as baseamount , ifnull(sum(b.notaxbasepremium), ifnull(a.notaxbasepremium, 0)) as notaxbasepremium , a.claimcondition, a.startdate as startdatedate, a.enddate as enddatedate, a.firstdate as firstdatelong, a.afterdate as afterdatelong , a.takedate , ( select ifnull(sum(bb.offeredline), 0) / 100 from ri_facregisterreins bb where a.sequenceno = bb.sequenceno group by bb.sequenceno ) as facofferedrate , ( select ifnull(sum(bb.writtenline), 0) / 100 from ri_facregisterreins bb where a.sequenceno = bb.sequenceno group by bb.sequenceno ) as facabilityrate, ( select ifnull(sum(dd.notaxpremium), 0) from reinsvalidreceive dd where cc.versionno = dd.versionno and cc.enquiryno = dd.enquiryno and dd.riskunitcode != '0' and cc.enquirytype = 'p' ) + ( select ifnull(sum(dd.chgnotaxpremium), 0) from reinsvalidreceive dd where cc.versionno = dd.versionno and cc.enquiryno = dd.enquiryno and dd.riskunitcode != '0' and cc.enquirytype = 'e' and exists ( select 1 from reinsvalidenquiry ee where ee.policyno = dd.policyno and ee.enquirytype = 'p' ) ) as outsumpremium , round(( select ifnull(sum(bb.offeredline), 0) from ri_facregisterreins bb where a.sequenceno = bb.sequenceno group by bb.sequenceno ) / a.coinsrate, 6) as basefacofferedrate , round(( select ifnull(sum(bb.writtenline), 0) from ri_facregisterreins bb where a.sequenceno = bb.sequenceno group by bb.sequenceno ) / a.coinsrate, 6) as basefacabilityrate , a.remarks, a.validstatus, cc.currency as currencyenquiry from reinsenquiryregisterbinding b join reinsvalidenquiry cc on b.riskunitcode = cc.riskunitcode join reinsvalidenquiryregister a on a.sequenceno = b.sequenceno and a.sequenceno = cc.sequenceno where (b.validflag = '1' and cc.validflag = '1' and a.validflag = '1' or a.branchcode in ( select comcode from fdcompany where compath like '%11000000%' )) and exists ( select 1 from reinsvalidriskunit e where e.policyno in ( select f.certifyno from reinsenquiryregisterbinding f where f.certitype = 'p' and b.sequenceno = f.sequenceno and f.validflag = '1' ) and b.certifyno = e.certifyno ) or not exists ( select 1 from reinsenquiryregisterbinding f where f.sequenceno = a.sequenceno and f.validflag = '1' ) group by a.sequenceno, a.businessstatus, a.businessstatusdesc, a.classname, a.branchname, a.reportno, a.branchoperatorname, a.operatorname, a.itemname, a.isbranch, a.riskclassname, a.faccodename, a.currency, a.coinsrate, a.closecodename, a.closedate, a.claimcondition, a.startdate, a.enddate, a.firstdate, a.afterdate, a.takedate, a.remarks, a.versionno, a.validstatus, cc.currency, cc.versionno, cc.enquiryno, cc.enquirytype, a.amount, a.premium, a.notaxpremium, a.baseamount, a.notaxbasepremium ) x group by x.sequenceno, x.businessstatus, x.businessstatusdesc, x.classname, x.branchname, x.reportno, x.branchoperatorname, x.operatorname, x.itemname, x.isbranch, x.riskclassname, x.faccodename, x.currency, x.coinsrate, x.closecodename, x.createdate, x.closedate, x.claimcondition, x.startdatedate, x.enddatedate, x.firstdatelong, x.afterdatelong, x.takedate, x.facofferedrate, x.facabilityrate, x.basefacabilityrate, x.basefacofferedrate, x.remarks, x.validstatus, x.currencyenquiry
+  tidb_sql: >
+    select x.sequenceno, x.businessstatus, x.businessstatusdesc, x.classname, x.branchname , x.reportno, x.branchoperatorname, x.operatorname, x.itemname, x.isbranch , x.riskclassname, x.faccodename, x.currency, x.coinsrate, x.closecodename , x.createdate, x.closedate, sum(x.amount) as amount , sum(x.premiumbigdecimal) as premiumbigdecimal, sum(x.notaxpremium) as notaxpremium , sum(x.baseamount) as baseamount, sum(x.notaxbasepremium) as notaxbasepremium , sum(outsumpremium) as outsumpremium, x.claimcondition, x.startdatedate , x.enddatedate, x.firstdatelong, x.afterdatelong, x.takedate, x.facofferedrate , x.facabilityrate, x.basefacabilityrate, x.basefacofferedrate, x.remarks, x.validstatus , x.currencyenquiry from ( select a.sequenceno, a.businessstatus, a.businessstatusdesc, a.classname, a.branchname , a.reportno, a.branchoperatorname, a.operatorname, a.itemname, a.isbranch , a.riskclassname, a.faccodename, a.currency, a.coinsrate / 100 as coinsrate , a.closecodename , ( select min(c.createdate) from reinsvalidenquiryregister c where c.sequenceno = a.sequenceno and c.versionno = '1' ) as createdate, a.closedate , ifnull(sum(b.amount), ifnull(a.amount, 0)) as amount , ifnull(sum(b.premium), ifnull(a.premium, 0)) as premiumbigdecimal , ifnull(sum(b.notaxpremium), ifnull(a.notaxpremium, 0)) as notaxpremium , ifnull(sum(b.baseamount), ifnull(a.baseamount, 0)) as baseamount , ifnull(sum(b.notaxbasepremium), ifnull(a.notaxbasepremium, 0)) as notaxbasepremium , a.claimcondition, a.startdate as startdatedate, a.enddate as enddatedate, a.firstdate as firstdatelong, a.afterdate as afterdatelong , a.takedate , ( select ifnull(sum(bb.offeredline), 0) / 100 from ri_facregisterreins bb where a.sequenceno = bb.sequenceno group by bb.sequenceno ) as facofferedrate , ( select ifnull(sum(bb.writtenline), 0) / 100 from ri_facregisterreins bb where a.sequenceno = bb.sequenceno group by bb.sequenceno ) as facabilityrate, ( select ifnull(sum(dd.notaxpremium), 0) from reinsvalidreceive dd where cc.versionno = dd.versionno and cc.enquiryno = dd.enquiryno and dd.riskunitcode != '0' and cc.enquirytype = 'p' ) + ( select ifnull(sum(dd.chgnotaxpremium), 0) from reinsvalidreceive dd where cc.versionno = dd.versionno and cc.enquiryno = dd.enquiryno and dd.riskunitcode != '0' and cc.enquirytype = 'e' and exists ( select 1 from reinsvalidenquiry ee where ee.policyno = dd.policyno and ee.enquirytype = 'p' ) ) as outsumpremium , round(( select ifnull(sum(bb.offeredline), 0) from ri_facregisterreins bb where a.sequenceno = bb.sequenceno group by bb.sequenceno ) / a.coinsrate, 6) as basefacofferedrate , round(( select ifnull(sum(bb.writtenline), 0) from ri_facregisterreins bb where a.sequenceno = bb.sequenceno group by bb.sequenceno ) / a.coinsrate, 6) as basefacabilityrate , a.remarks, a.validstatus, cc.currency as currencyenquiry from reinsenquiryregisterbinding b left join reinsvalidenquiry cc on b.riskunitcode = cc.riskunitcode right join reinsvalidenquiryregister a on a.sequenceno = b.sequenceno and a.sequenceno = cc.sequenceno where b.validflag = '1' and cc.validflag = '1' and a.validflag = '1' and (exists ( select 1 from reinsvalidriskunit e where e.policyno in ( select f.certifyno from reinsenquiryregisterbinding f where f.certitype = 'p' and b.sequenceno = f.sequenceno and f.validflag = '1' ) and b.certifyno = e.certifyno ) or not exists ( select 1 from reinsenquiryregisterbinding f where f.sequenceno = a.sequenceno and f.validflag = '1' )) and a.branchcode in ( select comcode from fdcompany where compath like '%11000000%' ) group by a.sequenceno, a.businessstatus, a.businessstatusdesc, a.classname, a.branchname, a.reportno, a.branchoperatorname, a.operatorname, a.itemname, a.isbranch, a.riskclassname, a.faccodename, a.currency, a.coinsrate, a.closecodename, a.closedate, a.claimcondition, a.startdate, a.enddate, a.firstdate, a.afterdate, a.takedate, a.remarks, a.versionno, a.validstatus, cc.currency, cc.versionno, cc.enquiryno, cc.enquirytype, a.amount, a.premium, a.notaxpremium, a.baseamount, a.notaxbasepremium ) x group by x.sequenceno, x.businessstatus, x.businessstatusdesc, x.classname, x.branchname, x.reportno, x.branchoperatorname, x.operatorname, x.itemname, x.isbranch, x.riskclassname, x.faccodename, x.currency, x.coinsrate, x.closecodename, x.createdate, x.closedate, x.claimcondition, x.startdatedate, x.enddatedate, x.firstdatelong, x.afterdatelong, x.takedate, x.facofferedrate, x.facabilityrate, x.basefacabilityrate, x.basefacofferedrate, x.remarks, x.validstatus, x.currencyenquiry
+- comment: 复杂SQL-7
+  oracle_sql: >
+    select a.settleNo,
+           a.freinsCode,
+           a.comCode,
+           a.comCName comName,
+           a.taxAmount,
+           a.amountLittle,
+           a.paidTaxFeeCNY,
+           a.paidPlanFeeCNY,
+           a.differenceAmount
+      from (select a.settleNo,
+                   a.freinscode,
+                   a.comCode,
+                   c.comCName,
+                   a.taxamount,
+                   a.amountlittle,
+                   b.paidtaxfeeCNY,
+                   sum(b.paidtaxfeeCNY + paidPlanFeeCNY) paidPlanFeeCNY,
+                   sum(b.paidtaxFeeCNY - a.taxamount) differenceAmount
+              from (select a.settleNo,
+                           a.reinsCode freinscode,
+                           a.comcode,
+                           sum(a.taxamount) taxamount,
+                           sum(a.amountlittle) amountlittle
+                      from FJINVOICEDETAIL a
+                     where a.settleNo = 'S2024P0128'
+                     group by a.settleNo, a.reinsCode, a.comcode
+                     order by a.reinsCode) a,
+                   (select invoicereinscode,
+                           COMCODE,
+                           sum(PAIDTAXFEECNY) PAIDTAXFEECNY,
+                           SETTLENO,
+                           sum(paidPlanFeeCNY) paidPlanFeeCNY
+                      from (select decode(invoicereinscode,
+                                          'RC0020',
+                                          'RC0068',
+                                          invoiceReinsCode) invoiceReinsCode,
+                                   comCode,
+                                   paidtaxfeeCNY,
+                                   settleNo,
+                                   paidPlanFeeCNY
+                              from FJSETTLETAXDETAIL
+                             where taxflag = '1'
+                               and withholdflag = '0')
+                     where 1 = 1
+                     group by invoicereinscode, comCode, settleNo) b,
+                   fdCompany c
+             where a.settleno = b.settleNo
+               and b.invoicereinscode = a.freinscode
+               and b.comCode = a.comCode
+               and a.comcode = c.comcode
+               and a.SETTLENO = 'S2024P0128'
+               and a.freinscode = 'RC0039'
+             group by a.settleNo,
+                      a.freinscode,
+                      a.comCode,
+                      c.comCName,
+                      a.taxAmount,
+                      a.amountLittle,
+                      b.paidTaxFeeCNY
+            union all
+            select settleNo,
+                   freinsCode,
+                   comCode,
+                   comName,
+                   0 taxAmount,
+                   0 amountLittle,
+                   sum(paidtaxfeeCNY) paidTaxFeeCNY,
+                   sum(paidPlanFeeCNY) paidPlanFeeCNY,
+                   sum(differenceamount) differenceAmount
+              from (select a.settleno,
+                           decode(a.invoicereinscode,
+                                  'RC0020',
+                                  'RC0068',
+                                  a.invoiceReinsCode) freinscode,
+                           a.comcode,
+                           b.comCName comname,
+                           a.paidtaxfeeCNY,
+                           (a.paidplanfeecny + a.Paidtaxfeecny) paidPlanFeeCNY,
+                           a.paidtaxfeeCNY differenceamount
+                      from FJSETTLETAXDETAIL a, fdCompany b
+                     where a.taxFlag = '1'
+                       and a.withHoldFlag = '0'
+                       and a.paidtaxfeeCNY <> 0
+                       and a.comcode = b.comcode
+                       and a.settleno =  'S2024P0128'
+                       and (a.comcode not in
+                           (select COMCODE
+                               from FJINVOICEDETAIL
+                              where settleno = 'S2024P0128') or
+                           a.invoicereinscode not in
+                           (select REINSCODE
+                               from FJINVOICEDETAIL
+                              where settleno = 'S2024P0128')))
+             where 1 = 1
+               and freinscode = 'RC0039'
+             group by settleNo, freinscode, comcode, comname) a
+     where a.differenceAmount <> 0
+     order by a.comCode
+  tidb_sql: >
+    SELECT a.settleNo, a.freinsCode, a.comCode, a.comCName AS comName, a.taxAmount
+    	, a.amountLittle, a.paidTaxFeeCNY, a.paidPlanFeeCNY, a.differenceAmount
+    FROM (
+    	SELECT a.settleNo, a.freinscode, a.comCode, c.comCName, a.taxamount
+    		, a.amountlittle, b.paidtaxfeeCNY, sum(b.paidtaxfeeCNY + paidPlanFeeCNY) AS paidPlanFeeCNY
+    		, sum(b.paidtaxFeeCNY - a.taxamount) AS differenceAmount
+    	FROM (
+    		SELECT a.settleNo, a.reinsCode AS freinscode, a.comcode, sum(a.taxamount) AS taxamount
+    			, sum(a.amountlittle) AS amountlittle
+    		FROM FJINVOICEDETAIL a
+    		WHERE a.settleNo = 'S2024P0128'
+    		GROUP BY a.settleNo, a.reinsCode, a.comcode
+    		ORDER BY a.reinsCode
+    	) a
+    	JOIN fdCompany c ON a.comcode = c.comcode 
+    		JOIN (
+    			SELECT invoicereinscode, COMCODE, sum(PAIDTAXFEECNY) AS PAIDTAXFEECNY, SETTLENO
+    				, sum(paidPlanFeeCNY) AS paidPlanFeeCNY
+    			FROM (
+    				SELECT CASE invoicereinscode
+    						WHEN 'RC0020' THEN 'RC0068'
+    						ELSE invoiceReinsCode
+    					END AS invoiceReinsCode
+    					, comCode, paidtaxfeeCNY, settleNo, paidPlanFeeCNY
+    				FROM FJSETTLETAXDETAIL
+    				WHERE taxflag = '1'
+    					AND withholdflag = '0'
+    			)
+    			WHERE 1 = 1
+    			GROUP BY invoicereinscode, comCode, settleNo
+    		) b ON a.settleno = b.settleNo
+    		AND b.invoicereinscode = a.freinscode
+    		AND b.comCode = a.comCode 
+    	WHERE a.SETTLENO = 'S2024P0128'
+    		AND a.freinscode = 'RC0039'
+    	GROUP BY a.settleNo, a.freinscode, a.comCode, c.comCName, a.taxAmount, a.amountLittle, b.paidTaxFeeCNY
+    	UNION ALL
+    	SELECT settleNo, freinsCode, comCode, comName, 0 AS taxAmount
+    		, 0 AS amountLittle, sum(paidtaxfeeCNY) AS paidTaxFeeCNY, sum(paidPlanFeeCNY) AS paidPlanFeeCNY
+    		, sum(differenceamount) AS differenceAmount
+    	FROM (
+    		SELECT a.settleno
+    			, CASE a.invoicereinscode
+    				WHEN 'RC0020' THEN 'RC0068'
+    				ELSE a.invoiceReinsCode
+    			END AS freinscode
+    			, a.comcode, b.comCName AS comname, a.paidtaxfeeCNY, a.paidplanfeecny + a.Paidtaxfeecny AS paidPlanFeeCNY
+    			, a.paidtaxfeeCNY AS differenceamount
+    		FROM FJSETTLETAXDETAIL a
+    			JOIN fdCompany b ON a.comcode = b.comcode 
+    		WHERE a.taxFlag = '1'
+    			AND a.withHoldFlag = '0'
+    			AND a.paidtaxfeeCNY <> 0
+    			AND a.settleno = 'S2024P0128'
+    			AND (a.comcode NOT IN (
+    					SELECT COMCODE
+    					FROM FJINVOICEDETAIL
+    					WHERE settleno = 'S2024P0128'
+    				)
+    				OR a.invoicereinscode NOT IN (
+    					SELECT REINSCODE
+    					FROM FJINVOICEDETAIL
+    					WHERE settleno = 'S2024P0128'
+    				))
+    	)
+    	WHERE 1 = 1
+    		AND freinscode = 'RC0039'
+    	GROUP BY settleNo, freinscode, comcode, comname
+    ) a
+    WHERE a.differenceAmount <> 0
+    ORDER BY a.comCode
