@@ -357,7 +357,7 @@ public class OracleToTiDBOutputVisitor extends OracleOutputVisitor {
         }
     }
 
-    private static void handleJoinCondition(OracleSelectJoin sqlTableSource, List<TableInfo> sortedTableInfos, List<TableRelation> tableRelations, Set<String> joinedTable, List<TableRelation> joinedTableRelations) {
+    private void handleJoinCondition(OracleSelectJoin sqlTableSource, List<TableInfo> sortedTableInfos, List<TableRelation> tableRelations, Set<String> joinedTable, List<TableRelation> joinedTableRelations) {
         // 获取关联的关系
         List<SQLBinaryOpExpr> innerRelations = new ArrayList<>();
         List<SQLBinaryOpExpr> outerRelations = new ArrayList<>();
@@ -377,8 +377,8 @@ public class OracleToTiDBOutputVisitor extends OracleOutputVisitor {
                         // 说明是使用(+)进行连接的
                         SQLBinaryOpExpr outerRelation = tableRelation.getOuterRelation();
                         // 这里的(+)都在右侧，因为之前被转换了
-                        String leftName = ((SQLIdentifierExpr) ((SQLPropertyExpr) outerRelation.getLeft()).getOwner()).getName();
-                        String rightName = ((SQLIdentifierExpr) ((SQLPropertyExpr) ((OracleOuterExpr) outerRelation.getRight()).getExpr()).getOwner()).getName();
+                        String leftName = getRelationColumnName(outerRelation.getLeft());
+                        String rightName = getRelationColumnName(outerRelation.getRight());
 
                         // 根据表名在sortedTableSources的顺序判断左右连接
                         int leftIndex = Math.max(sortedTableNames.indexOf(leftName), sortedAliases.indexOf(leftName));
@@ -661,6 +661,36 @@ public class OracleToTiDBOutputVisitor extends OracleOutputVisitor {
             }
         }
 
+        if (left instanceof SQLQueryExpr) {
+            SQLQueryExpr queryExpr = (SQLQueryExpr) left;
+            preVisit(queryExpr);
+            TableRelation tableRelation = new TableRelation();
+            // 加入tableRelations之前，判断其父是否有括号
+            SQLObject parent = left.getParent();
+            if (parent instanceof SQLBinaryOpExpr && ((SQLBinaryOpExpr) parent).isParenthesized()) {
+                // 如果有括号，判断其是否已经加入
+                handleParenthesized(sqlBinaryOpExpr, tableRelations, tableRelation, (SQLBinaryOpExpr) parent);
+            } else {
+                tableRelation.setCommonRelation(sqlBinaryOpExpr);
+                tableRelations.add(tableRelation);
+            }
+        }
+
+        if (right instanceof SQLQueryExpr) {
+            SQLQueryExpr queryExpr = (SQLQueryExpr) right;
+            preVisit(queryExpr);
+            TableRelation tableRelation = new TableRelation();
+            // 加入tableRelations之前，判断其父是否有括号
+            SQLObject parent = right.getParent();
+            if (parent instanceof SQLBinaryOpExpr && ((SQLBinaryOpExpr) parent).isParenthesized()) {
+                // 如果有括号，判断其是否已经加入
+                handleParenthesized(sqlBinaryOpExpr, tableRelations, tableRelation, (SQLBinaryOpExpr) parent);
+            } else {
+                tableRelation.setCommonRelation(sqlBinaryOpExpr);
+                tableRelations.add(tableRelation);
+            }
+        }
+
         if (left instanceof SQLBinaryOpExpr) {
             parseTableRelationsInWhere((SQLBinaryOpExpr) left, aliasNameMap, tableRelations);
         }
@@ -676,18 +706,17 @@ public class OracleToTiDBOutputVisitor extends OracleOutputVisitor {
         }
         // 说明是左连接
         if (right instanceof OracleOuterExpr) {
-            String leftName = ((SQLIdentifierExpr) ((SQLPropertyExpr) left).getOwner()).getName();
-            String rightName = ((SQLIdentifierExpr) ((SQLPropertyExpr) (((OracleOuterExpr) right).getExpr())).getOwner()).getName();
+            String leftName = getRelationColumnName(left);
+            String rightName = getRelationColumnName(right);
 
             TableRelation tableRelation = getTableRelation(aliasNameMap, leftName, rightName);
             tableRelation.setOuterRelation(sqlBinaryOpExpr);
             tableRelations.add(tableRelation);
         }
 
-
-        if (left instanceof SQLPropertyExpr && right instanceof SQLPropertyExpr) {
-            SQLObject parent = sqlBinaryOpExpr.getParent();
+        if (left instanceof SQLMethodInvokeExpr || right instanceof SQLMethodInvokeExpr) {
             // 向上找到连接关系
+            SQLObject parent = sqlBinaryOpExpr.getParent();
             while (!(parent instanceof OracleSelectJoin) && !(parent instanceof OracleSelectQueryBlock)) {
                 parent = parent.getParent();
             }
@@ -695,8 +724,8 @@ public class OracleToTiDBOutputVisitor extends OracleOutputVisitor {
                 OracleSelectJoin selectJoin = (OracleSelectJoin) parent;
                 if (selectJoin.getJoinType().equals(SQLJoinTableSource.JoinType.LEFT_OUTER_JOIN) || selectJoin.getJoinType().equals(SQLJoinTableSource.JoinType.RIGHT_OUTER_JOIN)) {
                     // 如果是左右连接
-                    String leftName = ((SQLIdentifierExpr) ((SQLPropertyExpr) left).getOwner()).getName();
-                    String rightName = ((SQLIdentifierExpr) ((SQLPropertyExpr) right).getOwner()).getName();
+                    String leftName = getRelationColumnName(left);
+                    String rightName = getRelationColumnName(right);
 
                     TableRelation tableRelation = getTableRelation(aliasNameMap, leftName, rightName);
                     tableRelation.setOuterRelation(sqlBinaryOpExpr);
@@ -735,13 +764,97 @@ public class OracleToTiDBOutputVisitor extends OracleOutputVisitor {
             }
 
             // 说明是内连接
-            String leftName = ((SQLIdentifierExpr) ((SQLPropertyExpr) left).getOwner()).getName();
-            String rightName = ((SQLIdentifierExpr) ((SQLPropertyExpr) right).getOwner()).getName();
+            String leftName = getRelationColumnName(left);
+            String rightName = getRelationColumnName(right);
+
+            if (StringUtils.isEmpty(leftName) || StringUtils.isEmpty(rightName)) {
+                throw new RuntimeException("暂不支持复杂的连接场景：" + sqlBinaryOpExpr);
+            }
 
             TableRelation tableRelation = getTableRelation(aliasNameMap, leftName, rightName);
             tableRelation.setInnerRelation(sqlBinaryOpExpr);
             tableRelations.add(tableRelation);
         }
+
+        if (left instanceof SQLPropertyExpr && right instanceof SQLPropertyExpr) {
+            // 向上找到连接关系
+            SQLObject parent = sqlBinaryOpExpr.getParent();
+            while (!(parent instanceof OracleSelectJoin) && !(parent instanceof OracleSelectQueryBlock)) {
+                parent = parent.getParent();
+            }
+            if (parent instanceof OracleSelectJoin) {
+                OracleSelectJoin selectJoin = (OracleSelectJoin) parent;
+                if (selectJoin.getJoinType().equals(SQLJoinTableSource.JoinType.LEFT_OUTER_JOIN) || selectJoin.getJoinType().equals(SQLJoinTableSource.JoinType.RIGHT_OUTER_JOIN)) {
+                    // 如果是左右连接
+                    String leftName = getRelationColumnName(left);
+                    String rightName = getRelationColumnName(right);
+
+                    TableRelation tableRelation = getTableRelation(aliasNameMap, leftName, rightName);
+                    tableRelation.setOuterRelation(sqlBinaryOpExpr);
+                    tableRelation.setOuterRelationType(selectJoin.getJoinType());
+
+                    SQLTableSource rightTable = ((OracleSelectJoin) parent).getRight();
+                    String leftTableName = "";
+                    String leftTableAlise = "";
+                    String rightTableName = "";
+                    String rightTableAlias = rightTable.getAlias();
+                    if (rightTable instanceof OracleSelectTableReference) {
+                        rightTableName = ((SQLIdentifierExpr) ((OracleSelectTableReference) rightTable).getExpr()).getName().toLowerCase();
+                    }
+                    if (rightTable instanceof OracleSelectSubqueryTableSource) {
+                        rightTableName = getSubqueryTableName();
+                    }
+
+                    String preTableName = tableRelation.getPreTable().getTableName().toLowerCase();
+                    String preAlias = tableRelation.getPreTable().getAlias().toLowerCase();
+                    String postTableName = tableRelation.getPostTable().getTableName().toLowerCase();
+                    String postAlias = tableRelation.getPostTable().getAlias().toLowerCase();
+
+                    if (rightTableName.equalsIgnoreCase(preTableName)) {
+                        leftTableName = postTableName;
+                        leftTableAlise = postAlias;
+                    } else {
+                        leftTableName = preTableName;
+                        leftTableAlise = preAlias;
+                    }
+
+                    tableRelation.setLeftTable(new TableInfo(leftTableName, leftTableAlise));
+                    tableRelation.setRightTable(new TableInfo(rightTableName, rightTableAlias));
+                    tableRelations.add(tableRelation);
+                    return;
+                }
+            }
+
+            // 说明是内连接
+            String leftName = getRelationColumnName(left);
+            String rightName = getRelationColumnName(right);
+
+            TableRelation tableRelation = getTableRelation(aliasNameMap, leftName, rightName);
+            tableRelation.setInnerRelation(sqlBinaryOpExpr);
+            tableRelations.add(tableRelation);
+        }
+    }
+
+    private String getRelationColumnName(SQLExpr sqlExpr) {
+        if (sqlExpr instanceof SQLPropertyExpr) {
+            return ((SQLIdentifierExpr) ((SQLPropertyExpr) sqlExpr).getOwner()).getName();
+        }
+
+        // 递归获取第一个SQLPropertyExpr的name
+        if (sqlExpr instanceof SQLMethodInvokeExpr) {
+            for (SQLExpr argument : ((SQLMethodInvokeExpr) sqlExpr).getArguments()) {
+                String expr = getRelationColumnName(argument);
+                if (expr != null) {
+                    return expr;
+                }
+            }
+        }
+
+        if (sqlExpr instanceof OracleOuterExpr) {
+            return getRelationColumnName(((OracleOuterExpr) sqlExpr).getExpr());
+        }
+
+        return null;
     }
 
     private void handleParenthesized(SQLBinaryOpExpr sqlBinaryOpExpr, Set<TableRelation> tableRelations, TableRelation tableRelation, SQLBinaryOpExpr parent) {

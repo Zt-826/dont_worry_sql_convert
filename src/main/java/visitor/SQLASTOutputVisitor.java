@@ -1878,6 +1878,9 @@ public class SQLASTOutputVisitor extends SQLASTVisitorAdapter implements Paramet
                 if (((SQLCharExpr) x.getArguments().get(1)).getText().equalsIgnoreCase("yyyy-MM-dd hh24:mi:ss")) {
                     x.setArgument(1, new SQLCharExpr("%Y-%m-%d %H:%i:%s"));
                 }
+                if (((SQLCharExpr) x.getArguments().get(1)).getText().equalsIgnoreCase("yyyy-MM")) {
+                    x.setArgument(1, new SQLCharExpr("%Y-%m"));
+                }
                 // 其他日期格式暂不支持
             }
         }
