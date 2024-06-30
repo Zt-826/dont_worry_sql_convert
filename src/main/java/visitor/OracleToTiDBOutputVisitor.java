@@ -20,7 +20,7 @@ import java.util.stream.Collectors;
 
 public class OracleToTiDBOutputVisitor extends OracleOutputVisitor {
 
-    private final List<? extends Class<? extends SQLExprImpl>> commonClasses = Arrays.asList(SQLIntegerExpr.class, SQLCharExpr.class, SQLIdentifierExpr.class, SQLVariantRefExpr.class);
+    public static final List<? extends Class<? extends SQLExprImpl>> commonClasses = Arrays.asList(SQLIntegerExpr.class, SQLCharExpr.class, SQLIdentifierExpr.class, SQLVariantRefExpr.class);
 
     public OracleToTiDBOutputVisitor(Appendable appender, boolean printPostSemi) {
         super(appender, printPostSemi);
@@ -243,7 +243,8 @@ public class OracleToTiDBOutputVisitor extends OracleOutputVisitor {
                 if (sqlExprs.size() == 1) {
                     oracleSelectQueryBlock.setWhere(sqlExprs.get(0));
                 } else if (!sqlExprs.isEmpty()) {
-                    SQLBinaryOpExpr curr = where;
+                    SQLBinaryOpExpr newWhere = new SQLBinaryOpExpr();
+                    SQLBinaryOpExpr curr = newWhere;
                     for (int i = sqlExprs.size() - 1; i > 0; i--) {
                         SQLExpr expr = sqlExprs.get(i);
                         SQLObject parent = expr.getParent();
@@ -269,8 +270,8 @@ public class OracleToTiDBOutputVisitor extends OracleOutputVisitor {
                         curr = (SQLBinaryOpExpr) curr.getLeft();
                     }
                     ((SQLBinaryOpExpr) curr.getParent()).setLeft(sqlExprs.get(0));
-                    oracleSelectQueryBlock.setWhere(where);
-                    where.setParent(oracleSelectQueryBlock);
+                    newWhere.setParent(oracleSelectQueryBlock);
+                    oracleSelectQueryBlock.setWhere(newWhere);
                 }
             }
         }
@@ -870,15 +871,17 @@ public class OracleToTiDBOutputVisitor extends OracleOutputVisitor {
         tableRelation.setCommonRelation(parent);
         // 遍历获取每个SQLBinaryOpExpr
         List<SQLBinaryOpExpr> SQLBinaryOpExprList = new ArrayList<>();
-        getSQLBinaryOpExpr(tableRelation.getCommonRelation(), SQLBinaryOpExprList);
+        List<SQLBinaryOpExpr> RowNumExprList = new ArrayList<>();
+        getSQLBinaryOpExpr(tableRelation.getCommonRelation(), SQLBinaryOpExprList, RowNumExprList);
         // 判断之前加入的relation是否包含于当前relation
         Iterator<TableRelation> iterator = tableRelations.iterator();
         while (iterator.hasNext()) {
             TableRelation relation = iterator.next();
-            List<SQLBinaryOpExpr> currRelationBinaryOpExprList = new ArrayList<>();
-            getSQLBinaryOpExpr(relation.getCommonRelation(), currRelationBinaryOpExprList);
+            List<SQLBinaryOpExpr> sqlBinaryOpExprs = new ArrayList<>();
+            List<SQLBinaryOpExpr> RowNumExprs = new ArrayList<>();
+            getSQLBinaryOpExpr(relation.getCommonRelation(), sqlBinaryOpExprs, RowNumExprs);
             // 如果有交集，需要将该relation删掉
-            if (SQLBinaryOpExprList.stream().anyMatch(currRelationBinaryOpExprList::contains)) {
+            if (SQLBinaryOpExprList.stream().anyMatch(sqlBinaryOpExprs::contains)) {
                 iterator.remove();
             }
         }
@@ -886,7 +889,7 @@ public class OracleToTiDBOutputVisitor extends OracleOutputVisitor {
         tableRelations.add(tableRelation);
     }
 
-    private void getSQLBinaryOpExpr(SQLBinaryOpExpr sqlBinaryOpExpr, List<SQLBinaryOpExpr> sqlBinaryOpExprList) {
+    public static void getSQLBinaryOpExpr(SQLBinaryOpExpr sqlBinaryOpExpr, List<SQLBinaryOpExpr> sqlBinaryOpExprList, List<SQLBinaryOpExpr> rowNumExprList) {
         if (sqlBinaryOpExpr == null) {
             return;
         }
@@ -895,15 +898,37 @@ public class OracleToTiDBOutputVisitor extends OracleOutputVisitor {
         SQLExpr right = sqlBinaryOpExpr.getRight();
 
         if (commonClasses.contains(left.getClass()) || commonClasses.contains(right.getClass())) {
+            if (left instanceof SQLIdentifierExpr && ((SQLIdentifierExpr) left).getName().equalsIgnoreCase("ROWNUM")) {
+                SQLObject parent = sqlBinaryOpExpr.getParent();
+                SQLObject grandParent = parent.getParent();
+                if (grandParent instanceof OracleSelectQueryBlock || grandParent instanceof SQLSelect) {
+                    rowNumExprList.add(sqlBinaryOpExpr);
+//                    ((OracleSelectQueryBlock) grandParent).setWhere(((SQLBinaryOpExpr)parent).getLeft());
+                } else {
+                    throw new RuntimeException("暂不支持ROWNUM的这种语法：" + sqlBinaryOpExpr);
+                }
+                return;
+            }
+            if (right instanceof SQLIdentifierExpr && ((SQLIdentifierExpr) right).getName().equalsIgnoreCase("ROWNUM")) {
+                SQLObject parent = sqlBinaryOpExpr.getParent();
+                SQLObject grandParent = parent.getParent();
+                if (grandParent instanceof OracleSelectQueryBlock) {
+                    rowNumExprList.add(sqlBinaryOpExpr);
+//                    ((OracleSelectQueryBlock) grandParent).setWhere(((SQLBinaryOpExpr)parent).getRight());
+                } else {
+                    throw new RuntimeException("暂不支持ROWNUM的这种语法：" + sqlBinaryOpExpr);
+                }
+                return;
+            }
             sqlBinaryOpExprList.add(sqlBinaryOpExpr);
             return;
         }
 
         if (left instanceof SQLBinaryOpExpr) {
-            getSQLBinaryOpExpr((SQLBinaryOpExpr) left, sqlBinaryOpExprList);
+            getSQLBinaryOpExpr((SQLBinaryOpExpr) left, sqlBinaryOpExprList, rowNumExprList);
         }
         if (right instanceof SQLBinaryOpExpr) {
-            getSQLBinaryOpExpr((SQLBinaryOpExpr) right, sqlBinaryOpExprList);
+            getSQLBinaryOpExpr((SQLBinaryOpExpr) right, sqlBinaryOpExprList, rowNumExprList);
         }
     }
 

@@ -3,131 +3,131 @@
     select * from tableA a join tableB b on a.id = b.id
     left join tableC c on c.id = a.id
     right join tableD d on d.id = b.id
-    where a.name = ? and b.name = ''
+    where a.name = ? and b.name is null
   tidb_sql: >
     select * from tableA a join tableB b on a.id = b.id
     left join tableC c on c.id = a.id
     right join tableD d on d.id = b.id
-    where a.name = ? and b.name = null
+    where a.name = ? and b.name is null
 
 - comment: 简单表关联：逗号 + where 语句
   oracle_sql: >
     select * from tableA a, tableB b where a.id = b.id
-    and a.name  = ? and b.name = ''
+    and a.name  = ? and b.name is null
   tidb_sql: >
     select * from tableA a join tableB b on a.id = b.id
-    where a.name = ? and b.name = null
+    where a.name = ? and b.name is null
 
 - comment: 表和简单子查询关联：join + on 语句
   oracle_sql: >
     select * from tableA a join (select * from tableB b where b.name = ?) b on a.id = b.id
-    where a.name  = ? and b.name = ''
+    where a.name  = ? and b.name is not null
   tidb_sql: >
     select * from tableA a join ( select * from tableB b where b.name = ? ) b on a.id = b.id
-    where a.name = ? and b.name = null
+    where a.name = ? and b.name is not null
 
 - comment: 表和简单子查询关联：逗号 + where 语句
   oracle_sql: >
     select * from tableA a, (select * from tableB b where b.name = ?) b where a.id = b.id
-    and a.name  = ? and b.name = ''
+    and a.name  = ? and b.name is null
   tidb_sql: >
     select * from tableA a join ( select * from tableB b where b.name = ? ) b on a.id = b.id
-    where a.name = ? and b.name = null
+    where a.name = ? and b.name is null
 
 - comment: 简单子查询和表关联：join + on 语句
   oracle_sql: >
     select * from (select * from tableB b where b.name = ?) b join tableA a on a.id = b.id
-    where a.name  = ? and b.name = ''
+    where a.name  = ? and b.name is not null
   tidb_sql: >
     select * from tableA a join ( select * from tableB b where b.name = ? ) b on a.id = b.id
-    where a.name = ? and b.name = null
+    where a.name = ? and b.name is not null
 
 - comment: 简单子查询和表关联：逗号 + where 语句
   oracle_sql: >
     select * from (select * from tableB b where b.name = ? ) b, tableA a where a.id = b.id
-    and a.name  = ? and b.name = ''
+    and a.name  = ? and b.name is null
   tidb_sql: >
     select * from tableA a join ( select * from tableB b where b.name = ? ) b on a.id = b.id
-    where a.name = ? and b.name = null
+    where a.name = ? and b.name is null
 
 - comment: 表和关联子查询关联：join + on 语句
   oracle_sql: >
     select * from tableA a join (select * from tableB b left join tableC c on b.id = c.id) b on a.id = b.id
-    where a.name  = ? and b.name = ''
+    where a.name = ? and b.name is null
   tidb_sql: >
     select * from tableA a join ( select * from tableB b left join tableC c on b.id = c.id ) b on a.id = b.id
-    where a.name = ? and b.name = null
+    where a.name = ? and b.name is null
 
 - comment: 表和关联子查询关联：逗号 + where 语句
   oracle_sql: >
     select * from tableA a, (select * from tableB b, tableC c where b.id = c.id(+)) b
-    where a.id = b.id and a.name  = ? and b.name = ''
+    where a.id = b.id and a.name = ? and b.name is not null
   tidb_sql: >
     select * from tableA a join ( select * from tableB b left join tableC c on b.id = c.id ) b
-    on a.id = b.id where a.name = ? and b.name = null
+    on a.id = b.id where a.name = ? and b.name is not null
 
 - comment: 关联子查询和表关联：join + on 语句
   oracle_sql: >
     select * from (select * from tableB b left join tableC c on b.id = c.id) b right join tableA a on a.id = b.id
-    where a.name  = ? and b.name = ''
+    where a.name = ? and b.name is null
   tidb_sql: >
     select * from tableA a left join ( select * from tableB b left join tableC c on b.id = c.id ) b on a.id = b.id
-    where a.name = ? and b.name = null
+    where a.name = ? and b.name is null
 
 - comment: 关联子查询和表关联：逗号 + where 语句
   oracle_sql: >
     select * from (select * from tableB b, tableC c where b.id = c.id(+)) b, tableA a
-    where a.id(+) = b.id and a.name = ? and b.name = ''
+    where a.id(+) = b.id and a.name = ? and b.name is null
   tidb_sql: >
     select * from tableA a right join
     ( select * from tableB b left join tableC c on b.id = c.id ) b
-    on b.id = a.id where a.name = ? and b.name = null
+    on b.id = a.id where a.name = ? and b.name is null
 
 - comment: 简单表顺序关联：join + on 语句
   oracle_sql: >
     select * from tableA a join tableB b on a.id = b.id
     left join tableC c on c.id = b.id
     right join tableD d on d.id = b.id
-    where a.id = 1 and b.name  = ? and c.name = '' and d.name = ?
+    where a.id = 1 and b.name  = ? and c.name is null and d.name = ?
   tidb_sql: >
     select * from tableA a join tableB b on a.id = b.id
     left join tableC c on c.id = b.id
     right join tableD d on d.id = b.id
-    where a.id = 1 and b.name  = ? and c.name = null and d.name = ?
+    where a.id = 1 and b.name  = ? and c.name is null and d.name = ?
 
 - comment: 简单表乱序关联：join + on 语句
   oracle_sql: >
     select * from tableC c join tableB b on c.id = b.id
     right join tableD d on d.id = b.id
     left join tableA a on a.id = b.id
-    where a.id = 1 and d.name = ? and b.name  = ? and c.name = ''
+    where a.id = 1 and d.name = ? and b.name  = ? and c.name is not null
   tidb_sql: >
     select * from tableA a right join tableB b on a.id = b.id
     join tableC c on c.id = b.id
     right join tableD d on d.id = b.id
-    where a.id = 1 and d.name = ? and b.name = ? and c.name = null
+    where a.id = 1 and d.name = ? and b.name = ? and c.name is not null
 
 - comment: 简单表顺序关联：逗号 + where 语句
   oracle_sql: >
     select * from tableA a, tableB b, tableC c, tableD d
     where a.id = b.id and b.id = c.id(+) and b.id(+) = d.id
-    and a.id = 1 and b.name  = ? and c.name = '' and d.name = ?
+    and a.id = 1 and b.name  = ? and c.name is null and d.name = ?
   tidb_sql: >
     select * from tableA a join tableB b on a.id = b.id
     left join tableC c on b.id = c.id
     right join tableD d on d.id = b.id
-    where a.id = 1 and b.name = ? and c.name = null and d.name = ?
+    where a.id = 1 and b.name = ? and c.name is null and d.name = ?
 
 - comment: 简单表乱序关联：逗号 + where 语句
   oracle_sql: >
     select * from tableC c, tableB b, tableD d, tableA a
     where a.id = b.id and b.id = c.id(+) and b.id(+) = d.id
-    and a.id = 1 and b.name  = ? and c.name = '' and d.name = ?
+    and a.id = 1 and b.name  = ? and c.name is null and d.name = ?
   tidb_sql: >
     select * from tableA a join tableB b on a.id = b.id
     left join tableC c on b.id = c.id
     right join tableD d on d.id = b.id
-    where a.id = 1 and b.name = ? and c.name = null and d.name = ?
+    where a.id = 1 and b.name = ? and c.name is null and d.name = ?
 
 - comment: 简单表乱序关联关联子查询：join + on 语句
   oracle_sql: >
@@ -243,8 +243,88 @@
   tidb_sql: >
     select * from tableA a left join tableB b on a.id = b.id where a.name = 1 or (b.code = 1 or b.code = 2)
 
-- comment: 外连接并存在 a.column(+) = 1 这种条件
+- comment: 外连接并存在 a.column(+) = 1 这种条件-1
+  oracle_sql: >
+    select * from tableA a, tableB b where a.id = b.id(+) and b.name = ? and a.name(+) = 1
+  tidb_sql: >
+    select * from tablea a left join tableb b on a.id = b.id where b.name = ? and (a.name = 1 or (a.name is null or a.name = ''))
+
+- comment: 外连接并存在 a.column(+) = 1 这种条件-2
   oracle_sql: >
     select * from tableA a, tableB b where a.id = b.id(+) and b.name is not null and a.name(+) = 1
   tidb_sql: >
-    select * from tableA a left join tableB b on a.id = b.id where b.name is not null and (a.name = 1 or a.name is null)
+    select * from tablea a left join tableb b on a.id = b.id where (b.name is not null and b.name != '') and (a.name = 1 or (a.name is null or a.name = ''))
+
+- comment: group by 中存在函数
+  oracle_sql: >
+    select a.column1 || a.column2 || b.column1 || b.column2, TO_CHAR(SYSDATE, 'yyyy-MM') from tableA a, tableB b where a.id = b.id(+) group by a.column1 || a.column2 || b.column1 || b.column2, TO_CHAR(SYSDATE, 'yyyy-MM')
+  tidb_sql: >
+    select concat(a.column1, a.column2, b.column1, b.column2) , date_format(now(), '%y-%m') from tablea a left join tableb b on a.id = b.id group by concat(a.column1, a.column2, b.column1, b.column2), date_format(now(), '%y-%m')
+
+- comment: where中存在函数
+  oracle_sql: >
+    select * from tableA a, tableB b where a.id = b.id(+) and Decode(a.flag, '1' ,'特约-' || a.name, a.age)  = '1'
+  tidb_sql: >
+    SELECT *
+    FROM tableA a
+    	LEFT JOIN tableB b ON a.id = b.id 
+    WHERE CASE a.flag
+    	WHEN '1' THEN CONCAT('特约-', a.name)
+    	ELSE a.age
+    END = '1'
+
+- comment: on中存在函数
+  oracle_sql: >
+    select * from tableA a left join tableB b on Decode(a.flag, '1' ,'特约-' || a.name, a.age)  = Decode(b.flag, '1' ,'特约-' || b.name, b.age)
+  tidb_sql: >
+    SELECT *
+    FROM tableA a
+    	LEFT JOIN tableB b ON CASE a.flag
+    		WHEN '1' THEN CONCAT('特约-', a.name)
+    		ELSE a.age
+    	END = CASE b.flag
+    		WHEN '1' THEN CONCAT('特约-', b.name)
+    		ELSE b.age
+    	END 
+
+- comment: minus差集运算语法
+  oracle_sql: >
+    SELECT * FROM t1 MINUS SELECT * FROM t2;
+  tidb_sql: >
+    SELECT * FROM t1 EXCEPT SELECT * FROM t2;
+
+- comment: 单表ROWNUM语法-1
+  oracle_sql: >
+    SELECT * FROM tableA a where Rownum <= 10;
+  tidb_sql: >
+    select * FROM tableA a limit 10;
+
+- comment: 单表ROWNUM语法-2
+  oracle_sql: >
+    SELECT * FROM tableA a where a.column = 1 and Rownum <= 10;
+  tidb_sql: >
+    select * FROM tableA a where a.column = 1 limit 10;
+
+- comment: 单表ROWNUM语法-3
+  oracle_sql: >
+    SELECT * FROM tableA a where a.column = 1 and a.code is not null and Rownum <= 10;
+  tidb_sql: >
+    select * from tablea a where a.column = 1 and (a.code is not null and a.code != '') limit 10;
+
+- comment: 多表ROWNUM语法-1
+  oracle_sql: >
+    SELECT * FROM tableA a, tableB b where a.id = b.id(+) and Rownum <= 10;
+  tidb_sql: >
+    select * FROM tableA a left join tableB b on a.id = b.id limit 10;
+
+- comment: 多表ROWNUM语法-2
+  oracle_sql: >
+    SELECT * FROM tableA a, tableB b where a.id = b.id(+) and a.column = 1 and Rownum <= 10;
+  tidb_sql: >
+    select * from tablea a left join tableb b on a.id = b.id where a.column = 1 limit 10;
+
+- comment: 多表ROWNUM语法-3
+  oracle_sql: >
+    SELECT * FROM tableA a left join tableB b on a.id = b.id where a.column = 1 and Rownum <= 10;
+  tidb_sql: >
+    select * FROM tableA a left join tableB b on a.id = b.id where a.column = 1 limit 10;

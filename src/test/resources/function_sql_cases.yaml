@@ -1,3 +1,9 @@
+- comment: TO_NUMBER 数字转字符串
+  oracle_sql: >
+    select TO_NUMBER('123') from tableA a
+  tidb_sql: >
+    select convert('123', SIGNED) from tablea a
+
 - comment: TO_CHAR 数字转字符串
   oracle_sql: >
     select TO_CHAR(-1234567890.0123456789) from tableA a
@@ -22,6 +28,12 @@
   tidb_sql: >
     select DATE_FORMAT(NOW(), '%Y-%m-%d %H:%i:%s') from tableA a
 
+- comment: TO_CHAR 日期转字符串 (年月日 时分秒)
+  oracle_sql: >
+    select TO_CHAR(SYSDATE, 'yyyy-mm-dd hh:mm:ss') from tableA a
+  tidb_sql: >
+    select DATE_FORMAT(NOW(), '%Y-%m-%d %H:%i:%s') from tableA a
+
 - comment: TO_DATE 字符串转日期 (年月日)
   oracle_sql: >
     select TO_DATE('2024-02-29','yyyy-MM-dd') from tableA a
@@ -31,6 +43,12 @@
 - comment: TO_DATE 字符串转日期 (年月日 时分秒)
   oracle_sql: >
     select TO_DATE('2024-02-29 17:31:37','yyyy-MM-dd hh24:mi:ss') from tableA a
+  tidb_sql: >
+    select STR_TO_DATE('2024-02-29 17:31:37', '%Y-%m-%d %H:%i:%s') from tableA a
+
+- comment: TO_DATE 字符串转日期 (年月日 时分秒)
+  oracle_sql: >
+    select TO_DATE('2024-02-29 17:31:37','yyyy-MM-dd hh:mi:ss') from tableA a
   tidb_sql: >
     select STR_TO_DATE('2024-02-29 17:31:37', '%Y-%m-%d %H:%i:%s') from tableA a
 
@@ -68,6 +86,12 @@
   tidb_sql: >
     select DATE_FORMAT(NOW(), '%Y-%m-%d') from tableA a
 
+- comment: TRUNC 获取当月第一天
+  oracle_sql: >
+    select TRUNC(sysdate,'mm') from tableA a
+  tidb_sql: >
+    select DATE_ADD(CURDATE(), INTERVAL -day(CURDATE()) +1 day) from tableA a
+
 - comment: TRUNC 截取数据
   oracle_sql: >
     select TRUNC(2.136) from tableA a
@@ -80,6 +104,60 @@
   tidb_sql: >
     select TRUNCATE(2.136, 2) from tableA a
 
+- comment: 获取date1 - date2 两个日期之间相差的天数
+  oracle_sql: >
+    select enddate - startdate from tableA a
+  tidb_sql: >
+    select datediff(enddate, startdate) from tableA a
+
+- comment: 日期数据减少n天
+  oracle_sql: >
+    select sysdate-1 from tableA a
+  tidb_sql: >
+    select date_add(now(), INTERVAL -1 DAY ) from tableA a
+
+- comment: 日期数据增加n天
+  oracle_sql: >
+    select sysdate+1 from tableA a
+  tidb_sql: >
+    select date_add(now(), INTERVAL 1 DAY ) from tableA a
+
+- comment: 日期数据减少n月
+  oracle_sql: >
+    select add_months( startDate,-120) from tableA a
+  tidb_sql: >
+    select date_add(startDate, interval -120 month ) from tableA a
+
+- comment: 日期数据增加n月
+  oracle_sql: >
+    select add_months( startDate,120) from tableA a
+  tidb_sql: >
+    select date_add(startDate, interval 120 month ) from tableA a
+
+- comment: 单表 is null
+  oracle_sql: >
+    select * from tableA a where a.column is null
+  tidb_sql: >
+    select * from tableA a where (a.column is null or a.column = '')
+
+- comment: 单表 is not null
+  oracle_sql: >
+    select * from tableA a where a.column is not null
+  tidb_sql: >
+    select * from tableA a where (a.column is not null and a.column != '')
+
+- comment: 多表 is null
+  oracle_sql: >
+    select * from tableA a, tableB b where a.id = b.id(+) and a.column is null and b.column is null
+  tidb_sql: >
+    select * from tableA a left join tableB b on a.id = b.id where (a.column is null or a.column = '') and (b.column is null or b.column = '')
+
+- comment: 多表 is not null
+  oracle_sql: >
+    select * from tableA a, tableB b where a.id = b.id(+) and a.column is not null and b.column is not null
+  tidb_sql: >
+    select * from tableA a left join tableB b on a.id = b.id where (a.column is not null and a.column != '') and (b.column is not null and b.column != '')
+
 - comment: NVL 判断空值
   oracle_sql: >
     select NVL(a.name, 'val') from tableA a
@@ -90,13 +168,13 @@
   oracle_sql: >
     select NVL2(a.name, val1, val2) from tableA a
   tidb_sql: >
-    select IF(a.name is NOT NULL, val1, val2) from tableA a
+    select if((a.name is not null and a.name != ''), val1, val2) from tablea a
 
 - comment: 拼接字符串
   oracle_sql: >
-    select 'a' || 'B' from tableA a
+    select a || 'B' || 'cd' || a.column from tableA a
   tidb_sql: >
-    select CONCAT('a', 'B') from tableA a
+    select CONCAT(a, 'B', 'cd', a.column) from tableA a
 
 - comment: 获取字符串长度
   oracle_sql: >
@@ -171,9 +249,56 @@
   tidb_sql: >
     select cast(regexp_substr(a.versionNo, '[0-9]+') as SIGNED INTEGER) from tableA a
 
-
 - comment: listagg(...) within group (order by ...)
   oracle_sql: >
     select listagg(F.riskcode,',') within group (order by riskcode) AS risk_code FROM fdrisk f where F.riskcode  in ('23020020','23020019');
   tidb_sql: >
     select group_concat(f.riskcode order by f.riskcode separator ',') as risk_code from fdrisk f where f.riskcode in ('23020020', '23020019');
+
+- comment: 获取序列的下一个值
+  oracle_sql: >
+    SELECT seq_actual.nextval AS next_sequence_value FROM tableA a;
+  tidb_sql: >
+    select nextval(seq_actual) AS next_sequence_value FROM tableA a;
+
+- comment: 获取随机序列值
+  oracle_sql: >
+    SELECT SYS_GUID() FROM tableA a;
+  tidb_sql: >
+    select UUID() FROM tableA a;
+
+- comment: 正则替换函数
+  oracle_sql: >
+    SELECT regexp_replace(a.column,'[^0-9]') FROM tableA a;
+  tidb_sql: >
+    select regexp_replace(a.column, '[^0-9]', '') FROM tableA a;    
+
+- comment: Months_between函数返回两个日期之间的月份值
+  oracle_sql: >
+    SELECT months_between(endtime, starttime) FROM tableA a;
+  tidb_sql: >
+    select TIMESTAMPDIFF(MONTH, starttime, endtime) FROM tableA a;
+
+- comment: 字符查找函数instr-1
+  oracle_sql: >
+    SELECT instr('abcdefg', 'b', 1, 1) FROM tableA a;
+  tidb_sql: >
+    select instr('abcdefg', 'b') FROM tableA a; 
+
+- comment: 字符查找函数instr-2
+  oracle_sql: >
+    SELECT instr(t1.STRUCTUREPATH, '/', 1, 1) FROM tableA a;
+  tidb_sql: >
+    select instr(t1.STRUCTUREPATH, '/') FROM tableA a;
+
+- comment: 字符查找函数instr-3
+  oracle_sql: >
+    SELECT instr('stst', 's', 1, 2) FROM tableA a;
+  tidb_sql: >
+    select LENGTH(SUBSTRING_INDEX('stst', 's', 2)) + 1 FROM tableA a; 
+
+- comment: 字符查找函数instr-4
+  oracle_sql: >
+    SELECT instr(t1.STRUCTUREPATH, '/', 1, 2) FROM tableA a;
+  tidb_sql: >
+    select LENGTH(SUBSTRING_INDEX(t1.STRUCTUREPATH, '/', 2)) + 1 FROM tableA a;

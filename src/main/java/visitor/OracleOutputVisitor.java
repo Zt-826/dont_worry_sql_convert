@@ -13,7 +13,10 @@ import com.alibaba.druid.sql.dialect.oracle.parser.OracleFunctionDataType;
 import com.alibaba.druid.sql.dialect.oracle.parser.OracleProcedureDataType;
 import com.alibaba.druid.sql.dialect.oracle.visitor.OracleASTVisitor;
 
+import java.util.ArrayList;
 import java.util.List;
+
+import static visitor.OracleToTiDBOutputVisitor.getSQLBinaryOpExpr;
 
 public class OracleOutputVisitor extends SQLASTOutputVisitor implements OracleASTVisitor {
     private final boolean printPostSemi;
@@ -350,6 +353,13 @@ public class OracleOutputVisitor extends SQLASTOutputVisitor implements OracleAS
             x.getFrom().accept(this);
         }
 
+        // 判断是否存在rownum
+        List<SQLBinaryOpExpr> binaryOpExprs = new ArrayList<>();
+        List<SQLBinaryOpExpr> rowNumExprs = new ArrayList<>();
+        if (x.getWhere() instanceof SQLBinaryOpExpr) {
+            getSQLBinaryOpExpr((SQLBinaryOpExpr) x.getWhere(), binaryOpExprs, rowNumExprs);
+        }
+
         if (x.getWhere() != null) {
             printWhere(x.getWhere());
         }
@@ -390,6 +400,52 @@ public class OracleOutputVisitor extends SQLASTOutputVisitor implements OracleAS
             } else if (x.getWaitTime() != null) {
                 print0(ucase ? " WAIT " : " wait ");
                 x.getWaitTime().accept(this);
+            }
+        }
+
+        if (!rowNumExprs.isEmpty()) {
+            // 这里理论上只有一个rownumb
+            if (rowNumExprs.size() > 1) {
+                throw new RuntimeException("暂不支持ROWNUM的这种语法：" + rowNumExprs);
+            }
+            println();
+            SQLBinaryOpExpr sqlBinaryOpExpr = rowNumExprs.get(0);
+            SQLExpr left = sqlBinaryOpExpr.getLeft();
+            SQLExpr right = sqlBinaryOpExpr.getRight();
+            SQLBinaryOperator operator = sqlBinaryOpExpr.getOperator();
+            if (left instanceof SQLIdentifierExpr && ((SQLIdentifierExpr) left).getName().equalsIgnoreCase("ROWNUM")) {
+                if (right instanceof SQLIntegerExpr) {
+                    int number = ((SQLIntegerExpr) sqlBinaryOpExpr.getRight()).getNumber().intValue();
+                    switch (operator) {
+                        case LessThan:
+                            print0(ucase ? "LIMIT " + (number - 1) : "limit " + (number - 1));
+                            break;
+                        case LessThanOrEqual:
+                            print0(ucase ? "LIMIT " + number : "limit " + number);
+                            break;
+                        default:
+                            throw new RuntimeException("暂不支持ROWNUM的这种操作符：" + operator);
+                    }
+                } else {
+                    throw new RuntimeException("暂不支持ROWNUM的这种语法：" + sqlBinaryOpExpr);
+                }
+            }
+            if (right instanceof SQLIdentifierExpr && ((SQLIdentifierExpr) right).getName().equalsIgnoreCase("ROWNUM")) {
+                if (left instanceof SQLIntegerExpr) {
+                    int number = ((SQLIntegerExpr) sqlBinaryOpExpr.getLeft()).getNumber().intValue();
+                    switch (operator) {
+                        case GreaterThan:
+                            print0(ucase ? "LIMIT " + (number - 1) : "limit " + (number - 1));
+                            break;
+                        case GreaterThanOrEqual:
+                            print0(ucase ? "LIMIT " + number : "limit " + number);
+                            break;
+                        default:
+                            throw new RuntimeException("暂不支持ROWNUM的这种操作符：" + operator);
+                    }
+                } else {
+                    throw new RuntimeException("暂不支持ROWNUM的这种语法：" + sqlBinaryOpExpr);
+                }
             }
         }
 

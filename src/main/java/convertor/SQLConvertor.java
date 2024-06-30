@@ -17,6 +17,6 @@ public class SQLConvertor extends SQLUtils {
             sqlStatement.accept(visitor);
         }
 
-        return out.toString();
+        return visitor.getAppender().toString();
     }
 }
