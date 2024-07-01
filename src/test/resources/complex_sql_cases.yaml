@@ -27,39 +27,7 @@
     			AND z.OBJECTID IS NOT NULL)
     		AND b.OBJECTID = u2.OBJECTID))
   tidb_sql: >
-    select
-      *
-    from
-      fzacc a
-    left join
-      fzeacc b
-    on
-      a.eaccno = b.eaccno
-    where exists
-      (
-        select
-          1
-        from
-          utiusergrade u2
-        left join
-          prpduser p
-        on
-          u2.usercode = p.usercode
-        where
-          b.objectid = u2.objectid
-        and u2.comcode in
-          (
-            select
-              k.comcode
-            from
-              fzcheck k
-            left join
-              fzcheck z
-            on
-              k.acccheckno = z.acccheckno
-            where
-              k.objectid = b.objectid
-            and z.objectid is not null ) )
+    select * from fzacc a left join fzeacc b on a.eaccno = b.eaccno where exists ( select 1 from utiusergrade u2 left join prpduser p on u2.usercode = p.usercode where b.objectid = u2.objectid and u2.comcode in ( select k.comcode from fzcheck k left join fzcheck z on k.acccheckno = z.acccheckno where k.objectid = b.objectid and (z.objectid is not null and z.objectid != '') ) )
 - comment: 复杂SQL-2
   oracle_sql: >
     select
