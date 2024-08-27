@@ -30,7 +30,7 @@
 
 - comment: TO_CHAR 日期转字符串 (年月日 时分秒)
   oracle_sql: >
-    select TO_CHAR(SYSDATE, 'yyyy-mm-dd hh:mm:ss') from tableA a
+    select TO_CHAR(SYSDATE, 'yyyy-MM-dd hh:mi:ss') from tableA a
   tidb_sql: >
     select DATE_FORMAT(NOW(), '%Y-%m-%d %H:%i:%s') from tableA a
 
@@ -84,13 +84,13 @@
   oracle_sql: >
     select TRUNC(SYSDATE) from tableA a
   tidb_sql: >
-    select DATE_FORMAT(NOW(), '%Y-%m-%d') from tableA a
+    select curdate() from tablea a
 
 - comment: TRUNC 获取当月第一天
   oracle_sql: >
     select TRUNC(sysdate,'mm') from tableA a
   tidb_sql: >
-    select DATE_ADD(CURDATE(), INTERVAL -day(CURDATE()) +1 day) from tableA a
+    select date_format(curdate(), '%y-%m-01') from tablea a
 
 - comment: TRUNC 截取数据
   oracle_sql: >
@@ -104,6 +104,37 @@
   tidb_sql: >
     select TRUNCATE(2.136, 2) from tableA a
 
+- comment: TRUNC 查询
+  oracle_sql: >
+    select
+            sysdate                     ,
+            trunc(sysdate)              ,
+            trunc(sysdate - 1)          ,
+            trunc(sysdate + 1)          ,
+            trunc(createdate)           ,
+            trunc(createdate - 1)       ,
+            trunc(createdate + 1)       ,
+            trunc(2.134)                ,
+            trunc('2.134')              ,
+            trunc(2.134, 2)             ,
+            trunc('2.134', 2)           ,
+            trunc(sysdate, 'dd')        ,
+            trunc(sysdate - 1, 'dd')    ,
+            trunc(sysdate + 1, 'dd')    ,
+            trunc(sysdate, 'mm')        ,
+            trunc(sysdate - 1, 'mm')    ,
+            trunc(sysdate + 1, 'mm')    ,
+            trunc(createdate, 'dd')     ,
+            trunc(createdate - 1 , 'dd'),
+            trunc(createdate + 1 , 'dd'),
+            trunc(createdate, 'mm')     ,
+            trunc(createdate - 1 , 'mm'),
+            trunc(createdate + 1 , 'mm')
+    from
+            table
+  tidb_sql: >
+    select now(), curdate() , date_sub(curdate(), interval 1 day) , date_add(curdate(), interval 1 day) , date(createdate) , date(date_sub(createdate, interval 1 day)) , date(date_add(createdate, interval 1 day)) , truncate(2.134, 0), truncate('2.134', 0) , truncate(2.134, 2) , truncate('2.134', 2) , curdate() , date_sub(curdate(), interval 1 day) , date_add(curdate(), interval 1 day) , date_format(curdate(), '%y-%m-01') , date_format(date_sub(curdate(), interval 1 month), '%y-%m-01') , date_format(date_add(curdate(), interval 1 month), '%y-%m-01') , date(createdate) , date(date_sub(createdate, interval 1 day)) , date(date_add(createdate, interval 1 day)) , date_format(createdate, '%y-%m-01') , date_format(date_sub(createdate, interval 1 month), '%y-%m-01') , date_format(date_add(createdate, interval 1 month), '%y-%m-01') from table
+
 - comment: 获取date1 - date2 两个日期之间相差的天数
   oracle_sql: >
     select enddate - startdate from tableA a
@@ -114,7 +145,7 @@
   oracle_sql: >
     select sysdate-1 from tableA a
   tidb_sql: >
-    select date_add(now(), INTERVAL -1 DAY ) from tableA a
+    select date_sub(now(), interval 1 day ) from tablea a
 
 - comment: 日期数据增加n天
   oracle_sql: >
@@ -243,6 +274,21 @@
     	END
     FROM TABLE a
 
+- comment: decode函数嵌套带默认值
+  oracle_sql: >
+    select
+      decode(a.period    ,
+          'P'               ,decode(a.kind,
+              'P'           ,0,
+                'E'         ,0,
+                  'C'       ,0),
+            decode(a.kind,
+                'I'         , 0))
+    from
+      table a
+  tidb_sql: >
+    select case a.period when 'p' then case a.kind when 'p' then 0 when 'e' then 0 when 'c' then 0 else null end else case a.kind when 'i' then 0 else null end end from table a
+
 - comment: cast函数
   oracle_sql: >
     select cast(regexp_substr(a.versionNo, '[0-9]+') as int) from tableA a
@@ -253,7 +299,7 @@
   oracle_sql: >
     select listagg(F.riskcode,',') within group (order by riskcode) AS risk_code FROM fdrisk f where F.riskcode  in ('23020020','23020019');
   tidb_sql: >
-    select group_concat(f.riskcode order by f.riskcode separator ',') as risk_code from fdrisk f where f.riskcode in ('23020020', '23020019');
+    select group_concat(f.riskcode order by riskcode separator ',') as risk_code from fdrisk f where f.riskcode in ('23020020', '23020019');
 
 - comment: 获取序列的下一个值
   oracle_sql: >

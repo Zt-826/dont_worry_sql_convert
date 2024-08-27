@@ -34,9 +34,9 @@ public class TableInfo implements Comparable<TableInfo> {
 
     @Override
     public int compareTo(TableInfo o) {
-        // 以tableName + " " + alias进行排序，字典序小的排在前边
-        String name = tableName.toLowerCase() + " " + alias.toLowerCase();
-        return name.compareTo(o.tableName.toLowerCase() + " " + o.alias.toLowerCase());
+        // 以alias + " " + tableName进行排序，字典序小的排在前边
+        String name = alias.toLowerCase()  + " "+ tableName.toLowerCase();
+        return name.compareTo(o.alias.toLowerCase() + " " + o.tableName.toLowerCase());
     }
 
     @Override

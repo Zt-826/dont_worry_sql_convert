@@ -16,6 +16,7 @@ import com.alibaba.druid.sql.dialect.oracle.visitor.OracleASTVisitor;
 import java.util.ArrayList;
 import java.util.List;
 
+import static visitor.OracleToTiDBOutputVisitor.getRowNumExprsFromSQLBinaryOpExprs;
 import static visitor.OracleToTiDBOutputVisitor.getSQLBinaryOpExpr;
 
 public class OracleOutputVisitor extends SQLASTOutputVisitor implements OracleASTVisitor {
@@ -306,6 +307,12 @@ public class OracleOutputVisitor extends SQLASTOutputVisitor implements OracleAS
             print0(x.getNullsOrderType().toFormalString());
         }
 
+        if (x.getExpr() != null) {
+            if (x.getExpr() instanceof SQLMethodInvokeExpr && ((SQLMethodInvokeExpr)x.getExpr()).getMethodName().equalsIgnoreCase("Concat")) {
+                printExpr(x.getExpr(), parameterized);
+            }
+        }
+
         return false;
     }
 
@@ -354,10 +361,9 @@ public class OracleOutputVisitor extends SQLASTOutputVisitor implements OracleAS
         }
 
         // 判断是否存在rownum
-        List<SQLBinaryOpExpr> binaryOpExprs = new ArrayList<>();
         List<SQLBinaryOpExpr> rowNumExprs = new ArrayList<>();
         if (x.getWhere() instanceof SQLBinaryOpExpr) {
-            getSQLBinaryOpExpr((SQLBinaryOpExpr) x.getWhere(), binaryOpExprs, rowNumExprs);
+            rowNumExprs = getRowNumExprsFromSQLBinaryOpExprs((SQLBinaryOpExpr) x.getWhere());
         }
 
         if (x.getWhere() != null) {
@@ -495,10 +501,12 @@ public class OracleOutputVisitor extends SQLASTOutputVisitor implements OracleAS
 
         printFlashback(x.getFlashback());
 
-        if ((x.getAlias() != null) && (x.getAlias().length() != 0)) {
-            print(' ');
-            print0(x.getAlias());
+        if (x.getAlias() == null || x.getAlias().isEmpty()) {
+            // 补充的默认叫a表
+            x.setAlias("a");
         }
+        print(' ');
+        print0(x.getAlias());
 
         return false;
     }

@@ -86,7 +86,7 @@
     left join tableA a on a.id = b.id
     where a.id = 1 and d.name = ? and b.name  = ? and c.name is not null
   tidb_sql: >
-    select * from tablea a right join tableb b on a.id = b.id join tablec c on c.id = b.id right join tabled d on d.id = b.id where a.id = 1 and d.name = ? and b.name = ? and (c.name is not null and c.name != '')
+    select * from tableb b join tablec c on c.id = b.id left join tablea a on a.id = b.id right join tabled d on d.id = b.id where a.id = 1 and d.name = ? and b.name = ? and (c.name is not null and c.name != '')
 
 - comment: 简单表顺序关联：逗号 + where 语句
   oracle_sql: >
@@ -303,3 +303,65 @@
     SELECT * FROM tableA a left join tableB b on a.id = b.id where a.column = 1 and Rownum <= 10;
   tidb_sql: >
     select * FROM tableA a left join tableB b on a.id = b.id where a.column = 1 limit 10;
+
+- comment: IN枚举语句
+  oracle_sql: >
+    SELECT * FROM tableA a, tableB b where a.id = b.id(+) and a.column in ('a', 'b');
+  tidb_sql: >
+    select * from tableA a left join tableB b on a.id = b.id where a.column in ('a', 'b');
+
+- comment: IN子查询语句
+  oracle_sql: >
+    SELECT * FROM tableA a, tableB b where a.id = b.id(+) and a.column in 
+    (select c.id from tableC c, tableD d where c.id(+) = d.id);
+  tidb_sql: >
+    select * from tableA a left join tableB b on a.id = b.id where a.column in
+    ( select c.id from tableC c right join tableD d on d.id = c.id );
+
+- comment: 变量替换
+  oracle_sql: >
+    SELECT * FROM tableA a, tableB b where a.id = b.id(+) and a.column = 1 and a.verifyId in (:verifyId);
+  tidb_sql: >
+    select * from tableA a left join tableB b on a.id = b.id where a.column = 1 and a.verifyid in (:verifyid);
+
+- comment: 子查询增加别名
+  oracle_sql: >
+    SELECT accno FROM (SELECT accno FROM (select accno from fzacc));
+  tidb_sql: >
+    SELECT accno FROM ( SELECT accno FROM ( select accno from fzacc ) a ) a;
+
+- comment: 有多个外关联条件
+  oracle_sql: >
+    SELECT count(1) FROM fzacc a, FZACCITEM b WHERE a.accno = b.ACCNO(+) AND a.OBJECTID = b.MAINOBJECTID(+)
+  tidb_sql: >
+    select count(1) from fzacc a left join fzaccitem b on a.accno = b.accno and a.objectid = b.mainobjectid
+
+- comment: 既有外关联又有内关联条件
+  oracle_sql: >
+    SELECT count(1) FROM fzacc a, FZACCITEM b WHERE a.accno = b.ACCNO AND a.OBJECTID  = b.MAINOBJECTID(+)
+  tidb_sql: >
+    select count(1) from fzacc a left join fzaccitem b on a.objectid = b.mainobjectid where a.accno = b.accno
+
+- comment: 既有外关联又有内关联条件
+  oracle_sql: >
+    SELECT count(1) FROM fzacc a, FZACCITEM b WHERE a.accno = b.ACCNO(+) AND a.OBJECTID  = b.MAINOBJECTID
+  tidb_sql: >
+    select count(1) from fzacc a left join fzaccitem b on a.accno = b.accno where a.objectid = b.mainobjectid
+
+- comment: 外关联条件包含函数
+  oracle_sql: >
+    select * from tableA a, tableB b where b.objectid = a.planmainid(+) and nvl(b.waitfsettleno, '1') = a.stsettleno(+)
+  tidb_sql: >
+    select * from tablea a right join tableb b on b.objectid = a.planmainid and ifnull(b.waitfsettleno, '1') = a.stsettleno
+
+- comment: 多个外关联条件包含函数
+  oracle_sql: >
+    select * from tableA a, tableB b where nvl(b.objectid, '1') = a.planmainid(+) and nvl(b.waitfsettleno, '1') = a.stsettleno(+)
+  tidb_sql: >
+    select * from tablea a right join tableb b on ifnull(b.objectid, '1') = a.planmainid and ifnull(b.waitfsettleno, '1') = a.stsettleno
+
+- comment: 既有外关联又有内关联条件包含函数
+  oracle_sql: >
+    select * from tableA a, tableB b where nvl(b.objectid, '1') = a.planmainid and nvl(b.waitfsettleno, '1') = a.stsettleno(+)
+  tidb_sql: >
+    select * from tablea a right join tableb b on ifnull(b.waitfsettleno, '1') = a.stsettleno where ifnull(b.objectid, '1') = a.planmainid

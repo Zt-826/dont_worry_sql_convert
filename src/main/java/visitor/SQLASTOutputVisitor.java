@@ -43,7 +43,8 @@ public class SQLASTOutputVisitor extends SQLASTVisitorAdapter implements Paramet
 
     static {
         try {
-            defaultPrintStatementAfterSemi = getBoolean(System.getProperties(), "fastsql.sql.output.printStatementAfterSemi"); // compatible for early versions
+            defaultPrintStatementAfterSemi = getBoolean(System.getProperties(), "fastsql.sql.output" +
+                    ".printStatementAfterSemi"); // compatible for early versions
         } catch (SecurityException ex) {
             // skip
         }
@@ -460,7 +461,8 @@ public class SQLASTOutputVisitor extends SQLASTVisitorAdapter implements Paramet
 
             int paramCount = paramCount(selectItemExpr);
 
-            boolean methodOrBinary = (!(selectItemExpr instanceof SQLName)) && (selectItemExpr instanceof SQLMethodInvokeExpr || selectItemExpr instanceof SQLAggregateExpr || selectItemExpr instanceof SQLBinaryOpExpr);
+            boolean methodOrBinary =
+                    (!(selectItemExpr instanceof SQLName)) && (selectItemExpr instanceof SQLMethodInvokeExpr || selectItemExpr instanceof SQLAggregateExpr || selectItemExpr instanceof SQLBinaryOpExpr);
 
             if (methodOrBinary) {
                 lineItemCount += (paramCount - 1);
@@ -841,20 +843,36 @@ public class SQLASTOutputVisitor extends SQLASTVisitorAdapter implements Paramet
     public boolean visit(SQLBinaryOpExpr x) {
         SQLBinaryOperator operator = x.getOperator();
 
-        // 处理group by中的concat
+        // 处理concat
         if (operator == SQLBinaryOperator.Concat) {
             List<SQLExpr> list = new ArrayList<>();
             getSQLCharExpr(x.getLeft(), list);
             getSQLCharExpr(x.getRight(), list);
 
-            List<SQLExpr> items = ((SQLSelectGroupByClause) x.getParent()).getItems();
-            for (int i = 0; i < items.size(); i++) {
-                if (items.get(i) == x) {
-                    items.set(i, new SQLMethodInvokeExpr("Concat", null, list));
-                    break;
+            // 处理group by中的concat
+            if (x.getParent() instanceof SQLSelectGroupByClause) {
+                List<SQLExpr> items = ((SQLSelectGroupByClause) x.getParent()).getItems();
+                for (int i = 0; i < items.size(); i++) {
+                    if (items.get(i) == x) {
+                        items.set(i, new SQLMethodInvokeExpr("Concat", null, list));
+                        break;
+                    }
                 }
+                return false;
             }
-            return false;
+
+            // 处理order by中的concat
+            if (x.getParent() instanceof SQLSelectOrderByItem) {
+                SQLOrderBy orderBy = (SQLOrderBy) x.getParent().getParent();
+                List<SQLSelectOrderByItem> items = orderBy.getItems();
+                for (SQLSelectOrderByItem item : items) {
+                    if (item == x.getParent()) {
+                        item.setExpr(new SQLMethodInvokeExpr("Concat", null, list));
+                        break;
+                    }
+                }
+                return false;
+            }
         }
 
         if (this.parameterized && operator == SQLBinaryOperator.BooleanOr && !isEnabled(VisitorFeature.OutputParameterizedQuesUnMergeOr)) {
@@ -1012,14 +1030,16 @@ public class SQLASTOutputVisitor extends SQLASTVisitorAdapter implements Paramet
             getSQLCharExpr(x.getLeft(), list);
             getSQLCharExpr(x.getRight(), list);
 
-            List<SQLExpr> items = ((SQLSelectGroupByClause) x.getParent()).getItems();
-            for (int i = 0; i < items.size(); i++) {
-                if (items.get(i) == x) {
-                    items.set(i, new SQLMethodInvokeExpr("Concat", null, list));
-                    break;
+            if (x.getParent() instanceof SQLSelectGroupByClause) {
+                List<SQLExpr> items = ((SQLSelectGroupByClause) x.getParent()).getItems();
+                for (int i = 0; i < items.size(); i++) {
+                    if (items.get(i) == x) {
+                        items.set(i, new SQLMethodInvokeExpr("Concat", null, list));
+                        break;
+                    }
                 }
+                return false;
             }
-            return false;
         }
 
         if (this.parameterized && operator == SQLBinaryOperator.BooleanOr && !isEnabled(VisitorFeature.OutputParameterizedQuesUnMergeOr)) {
@@ -1446,7 +1466,9 @@ public class SQLASTOutputVisitor extends SQLASTVisitorAdapter implements Paramet
             } else if (((SQLBinaryOpExpr) x).getOperator().equals(SQLBinaryOperator.Subtract)) {
                 SQLExpr left = ((SQLBinaryOpExpr) x).getLeft();
                 SQLExpr right = ((SQLBinaryOpExpr) x).getRight();
-                if (right instanceof SQLIdentifierExpr) {
+                if (left instanceof SQLMethodInvokeExpr && ((((SQLMethodInvokeExpr) left).getMethodName()).equalsIgnoreCase("LENGTH") || (((SQLMethodInvokeExpr) left).getMethodName()).equalsIgnoreCase("CHAR_LENGTH"))) {
+                    visit((SQLBinaryOpExpr) x, print);
+                } else if (right instanceof SQLIdentifierExpr) {
                     // 处理 enddate - startdate
                     SQLMethodInvokeExpr sqlMethodInvokeExpr = new SQLMethodInvokeExpr("DATEDIFF");
                     sqlMethodInvokeExpr.addArgument(left);
@@ -1454,9 +1476,9 @@ public class SQLASTOutputVisitor extends SQLASTVisitorAdapter implements Paramet
                     printExpr(sqlMethodInvokeExpr, parameterized, print);
                 } else if (right instanceof SQLIntegerExpr) {
                     // 处理日期偏移 date_add(now(), INTERVAL -1 DAY)
-                    SQLMethodInvokeExpr sqlMethodInvokeExpr = new SQLMethodInvokeExpr("DATE_ADD");
+                    SQLMethodInvokeExpr sqlMethodInvokeExpr = new SQLMethodInvokeExpr("DATE_SUB");
                     sqlMethodInvokeExpr.addArgument(left);
-                    sqlMethodInvokeExpr.addArgument(new SQLIdentifierExpr("INTERVAL " + SQLBinaryOperator.Subtract.getName() + right + " DAY "));
+                    sqlMethodInvokeExpr.addArgument(new SQLIdentifierExpr("INTERVAL " + right + " DAY "));
                     printExpr(sqlMethodInvokeExpr, parameterized, print);
                 } else {
                     visit((SQLBinaryOpExpr) x, print);
@@ -1464,7 +1486,9 @@ public class SQLASTOutputVisitor extends SQLASTVisitorAdapter implements Paramet
             } else if (((SQLBinaryOpExpr) x).getOperator().equals(SQLBinaryOperator.Add)) {
                 SQLExpr left = ((SQLBinaryOpExpr) x).getLeft();
                 SQLExpr right = ((SQLBinaryOpExpr) x).getRight();
-                if (right instanceof SQLIntegerExpr) {
+                if (left instanceof SQLMethodInvokeExpr && ((((SQLMethodInvokeExpr) left).getMethodName()).equalsIgnoreCase("LENGTH") || (((SQLMethodInvokeExpr) left).getMethodName()).equalsIgnoreCase("CHAR_LENGTH"))) {
+                    visit((SQLBinaryOpExpr) x, print);
+                } else if (right instanceof SQLIntegerExpr) {
                     // 处理日期偏移 date_add(now(), INTERVAL 1 DAY)
                     SQLMethodInvokeExpr sqlMethodInvokeExpr = new SQLMethodInvokeExpr("DATE_ADD");
                     sqlMethodInvokeExpr.addArgument(left);
@@ -2361,28 +2385,67 @@ public class SQLASTOutputVisitor extends SQLASTVisitorAdapter implements Paramet
                 if (x.getArguments().get(0).getClass().equals(OracleSysdateExpr.class)) {
                     x.setArgument(0, new SQLMethodInvokeExpr("NOW"));
                 }
-                if (((SQLCharExpr) x.getArguments().get(1)).getText().equalsIgnoreCase("yyyy-MM-dd")) {
-                    x.setArgument(1, new SQLCharExpr("%Y-%m-%d"));
+                String[] dateArr = ((SQLCharExpr) x.getArguments().get(1)).getText().split(" ");
+                if (dateArr.length > 1) {
+                    // 说明包含日期和时间
+                    String date = dateArr[0];
+                    String newDate = date.replace("yyyy", "%Y");
+                    newDate = newDate.replace("YYYY", "%Y");
+                    newDate = newDate.replace("mm", "%m");
+                    newDate = newDate.replace("MM", "%m");
+                    newDate = newDate.replace("dd", "%d");
+                    newDate = newDate.replace("DD", "%d");
+                    String time = dateArr[1];
+                    String newTime = time.replace("hh24", "%H");
+                    newTime = newTime.replace("hh", "%H");
+                    newTime = newTime.replace("mi", "%i");
+                    newTime = newTime.replace("mm", "%i");
+                    newTime = newTime.replace("ss", "%s");
+                    x.setArgument(1, new SQLCharExpr(newDate + " " + newTime));
+                } else {
+                    // 说明仅包含日期
+                    String date = dateArr[0];
+                    String newDate = date.replace("yyyy", "%Y");
+                    newDate = newDate.replace("YYYY", "%Y");
+                    newDate = newDate.replace("mm", "%m");
+                    newDate = newDate.replace("MM", "%m");
+                    newDate = newDate.replace("dd", "%d");
+                    newDate = newDate.replace("DD", "%d");
+                    x.setArgument(1, new SQLCharExpr(newDate));
                 }
-                if (((SQLCharExpr) x.getArguments().get(1)).getText().equalsIgnoreCase("yyyy-MM-dd hh24:mi:ss") || ((SQLCharExpr) x.getArguments().get(1)).getText().equalsIgnoreCase("yyyy-mm-dd hh:mm:ss")) {
-                    x.setArgument(1, new SQLCharExpr("%Y-%m-%d %H:%i:%s"));
-                }
-                if (((SQLCharExpr) x.getArguments().get(1)).getText().equalsIgnoreCase("yyyy-MM")) {
-                    x.setArgument(1, new SQLCharExpr("%Y-%m"));
-                }
-                // 其他日期格式暂不支持
             }
         }
 
         // 处理To_Date
         if (function.equalsIgnoreCase("To_Date")) {
             x.setMethodName("STR_TO_DATE");
-            if (((SQLCharExpr) x.getArguments().get(1)).getText().equalsIgnoreCase("yyyy-MM-dd")) {
-                x.setArgument(1, new SQLCharExpr("%Y-%m-%d"));
+            String[] dateArr = ((SQLCharExpr) x.getArguments().get(1)).getText().split(" ");
+            if (dateArr.length > 1) {
+                // 说明包含日期和时间
+                String date = dateArr[0];
+                String newDate = date.replace("yyyy", "%Y");
+                newDate = newDate.replace("YYYY", "%Y");
+                newDate = newDate.replace("MM", "%m");
+                newDate = newDate.replace("mm", "%m");
+                newDate = newDate.replace("dd", "%d");
+                String time = dateArr[1];
+                String newTime = time.replace("hh24", "%H");
+                newTime = newTime.replace("hh", "%H");
+                newTime = newTime.replace("mi", "%i");
+                newTime = newTime.replace("mm", "%i");
+                newTime = newTime.replace("ss", "%s");
+                x.setArgument(1, new SQLCharExpr(newDate + " " + newTime));
+            } else {
+                // 说明仅包含日期
+                String date = dateArr[0];
+                String newDate = date.replace("yyyy", "%Y");
+                newDate = newDate.replace("YYYY", "%Y");
+                newDate = newDate.replace("MM", "%m");
+                newDate = newDate.replace("mm", "%m");
+                newDate = newDate.replace("dd", "%d");
+                x.setArgument(1, new SQLCharExpr(newDate));
             }
-            if (((SQLCharExpr) x.getArguments().get(1)).getText().equalsIgnoreCase("yyyy-MM-dd hh24:mi:ss") || ((SQLCharExpr) x.getArguments().get(1)).getText().equalsIgnoreCase("yyyy-MM-dd hh:mi:ss")) {
-                x.setArgument(1, new SQLCharExpr("%Y-%m-%d %H:%i:%s"));
-            }
+
             // 其他日期格式暂不支持
         }
 
@@ -2394,35 +2457,160 @@ public class SQLASTOutputVisitor extends SQLASTVisitorAdapter implements Paramet
 
         // 处理TRUNC
         if (function.equalsIgnoreCase("TRUNC")) {
-            if (x.getArguments().get(0) instanceof SQLMethodInvokeExpr || x.getArguments().get(0) instanceof OracleSysdateExpr) {
-                // 暂时只处理这种情况
-                if (x.getArguments().size() == 1) {
-                    x.setMethodName("DATE_FORMAT");
-                    x.setArgument(0, new SQLMethodInvokeExpr("NOW"));
-                    x.getArguments().add(new SQLCharExpr("%Y-%m-%d"));
-                } else {
-                    SQLExpr sqlExpr0 = x.getArguments().get(0);
-                    SQLExpr sqlExpr1 = x.getArguments().get(1);
-                    // 这里只处理这一类语法
-                    if (sqlExpr1 instanceof SQLCharExpr) {
-                        SQLCharExpr charExpr = (SQLCharExpr) sqlExpr1;
-                        if (charExpr.getText().equalsIgnoreCase("mm")) {
-                            if (sqlExpr0 instanceof OracleSysdateExpr) {
-                                x.setMethodName("DATE_ADD");
-                                x.setArgument(0, new SQLMethodInvokeExpr("CURDATE"));
-                                SQLMethodInvokeExpr dayMethod = new SQLMethodInvokeExpr("DAY");
-                                dayMethod.addArgument(new SQLMethodInvokeExpr("CURDATE"));
-                                x.setArgument(1, new SQLIdentifierExpr("INTERVAL " + SQLBinaryOperator.Subtract.getName() + dayMethod + " " + SQLBinaryOperator.Add.getName() + "1 DAY"));
-                            }
+            // 这里有三种情况，截取sysdate或是数值或是列名
+            if (x.getArguments().size() == 1) {
+                // 如果只有一个参数
+                if (x.getArguments().get(0) instanceof OracleSysdateExpr) {
+                    // 如果是sysdate
+                    x.setMethodName("CURDATE");
+                    x.getArguments().clear();
+                } else if (x.getArguments().get(0) instanceof SQLBinaryOpExpr) {
+                    SQLBinaryOperator operator = ((SQLBinaryOpExpr) x.getArguments().get(0)).getOperator();
+                    SQLExpr left = ((SQLBinaryOpExpr) x.getArguments().get(0)).getLeft();
+                    SQLExpr right = ((SQLBinaryOpExpr) x.getArguments().get(0)).getRight();
+                    if (operator.equals(SQLBinaryOperator.Subtract)) {
+                        if (left instanceof OracleSysdateExpr) {
+                            x.setMethodName("DATE_SUB");
+                            x.setArgument(0, new SQLMethodInvokeExpr("CURDATE"));
+                            x.addArgument(new SQLIdentifierExpr("INTERVAL " + right + " DAY"));
+                        } else if ((left instanceof SQLPropertyExpr) || (left instanceof SQLIdentifierExpr)) {
+                            x.setMethodName("DATE");
+                            SQLMethodInvokeExpr dateSub = new SQLMethodInvokeExpr("DATE_SUB");
+                            dateSub.addArgument(left);
+                            dateSub.addArgument(new SQLIdentifierExpr("INTERVAL " + right + " DAY"));
+                            x.setArgument(0, dateSub);
+                        } else {
+                            x.setMethodName("TRUNCATE");
+                            x.addArgument(new SQLIdentifierExpr("0"));
+                        }
+                    } else if (operator.equals(SQLBinaryOperator.Add)) {
+                        if (left instanceof OracleSysdateExpr) {
+                            x.setMethodName("DATE_ADD");
+                            x.setArgument(0, new SQLMethodInvokeExpr("CURDATE"));
+                            x.addArgument(new SQLIdentifierExpr("INTERVAL " + right + " DAY"));
+                        } else if ((left instanceof SQLPropertyExpr) || (left instanceof SQLIdentifierExpr)) {
+                            x.setMethodName("DATE");
+                            SQLMethodInvokeExpr dateAdd = new SQLMethodInvokeExpr("DATE_ADD");
+                            dateAdd.addArgument(left);
+                            dateAdd.addArgument(new SQLIdentifierExpr("INTERVAL " + right + " DAY"));
+                            x.setArgument(0, dateAdd);
+                        } else {
+                            x.setMethodName("TRUNCATE");
+                            x.addArgument(new SQLIdentifierExpr("0"));
                         }
                     } else {
-                        throw new RuntimeException("暂不支持TRUNC的这种语法：" + x);
+                        x.setMethodName("TRUNCATE");
+                        x.addArgument(new SQLIdentifierExpr("0"));
                     }
+                } else if ((x.getArguments().get(0) instanceof SQLPropertyExpr) || (x.getArguments().get(0) instanceof SQLIdentifierExpr)) {
+                    // 如果是列名，默认列名为日期类型（不想去获取元数据了）
+                    x.setMethodName("DATE");
+                } else {
+                    // 如果是数值
+                    x.setMethodName("TRUNCATE");
+                    x.addArgument(new SQLIdentifierExpr("0"));
                 }
             } else {
-                x.setMethodName("TRUNCATE");
-                if (x.getArguments().size() == 1) {
-                    x.getArguments().add(new SQLIdentifierExpr("0"));
+                // 如果存在多个参数
+                SQLExpr sqlExpr0 = x.getArguments().get(0);
+                SQLExpr sqlExpr1 = x.getArguments().get(1);
+                if (sqlExpr1 instanceof SQLCharExpr) {
+                    SQLCharExpr charExpr = (SQLCharExpr) sqlExpr1;
+                    if (charExpr.getText().equalsIgnoreCase("dd")) {
+                        if (sqlExpr0 instanceof OracleSysdateExpr) {
+                            // 如果是sysdate
+                            x.setMethodName("CURDATE");
+                            x.getArguments().clear();
+                        } else if ((sqlExpr0 instanceof SQLPropertyExpr) || (sqlExpr0 instanceof SQLIdentifierExpr)) {
+                            // 如果是是列名
+                            x.setMethodName("DATE");
+                            x.getArguments().clear();
+                            x.addArgument(sqlExpr0);
+                        } else if (sqlExpr0 instanceof SQLBinaryOpExpr) {
+                            SQLBinaryOperator operator = ((SQLBinaryOpExpr) sqlExpr0).getOperator();
+                            SQLExpr left = ((SQLBinaryOpExpr) sqlExpr0).getLeft();
+                            SQLExpr right = ((SQLBinaryOpExpr) sqlExpr0).getRight();
+                            if (operator.equals(SQLBinaryOperator.Subtract)) {
+                                if (left instanceof OracleSysdateExpr) {
+                                    x.setMethodName("DATE_SUB");
+                                    x.setArgument(0, new SQLMethodInvokeExpr("CURDATE"));
+                                    x.setArgument(1, new SQLIdentifierExpr("INTERVAL " + right + " DAY"));
+                                } else if ((left instanceof SQLPropertyExpr) || (left instanceof SQLIdentifierExpr)) {
+                                    x.setMethodName("DATE");
+                                    x.getArguments().clear();
+                                    SQLMethodInvokeExpr dateSub = new SQLMethodInvokeExpr("DATE_SUB");
+                                    dateSub.addArgument(left);
+                                    dateSub.addArgument(new SQLIdentifierExpr("INTERVAL " + right + " DAY"));
+                                    x.addArgument(dateSub);
+                                } else {
+                                    x.setMethodName("TRUNCATE");
+                                }
+                            } else if (operator.equals(SQLBinaryOperator.Add)) {
+                                if (left instanceof OracleSysdateExpr) {
+                                    x.setMethodName("DATE_ADD");
+                                    x.setArgument(0, new SQLMethodInvokeExpr("CURDATE"));
+                                    x.setArgument(1, new SQLIdentifierExpr("INTERVAL " + right + " DAY"));
+                                } else if ((left instanceof SQLPropertyExpr) || (left instanceof SQLIdentifierExpr)) {
+                                    x.setMethodName("DATE");
+                                    x.getArguments().clear();
+                                    SQLMethodInvokeExpr dateAdd = new SQLMethodInvokeExpr("DATE_ADD");
+                                    dateAdd.addArgument(left);
+                                    dateAdd.addArgument(new SQLIdentifierExpr("INTERVAL " + right + " DAY"));
+                                    x.addArgument(dateAdd);
+                                } else {
+                                    x.setMethodName("TRUNCATE");
+                                }
+                            } else {
+                                x.setMethodName("TRUNCATE");
+                            }
+                        } else {
+                            x.setMethodName("TRUNCATE");
+                        }
+                    }
+                    if (charExpr.getText().equalsIgnoreCase("mm")) {
+                        if (sqlExpr0 instanceof OracleSysdateExpr) {
+                            // 如果是sysdate
+                            x.setMethodName("DATE_FORMAT");
+                            x.setArgument(0, new SQLMethodInvokeExpr("CURDATE"));
+                            x.setArgument(1, new SQLCharExpr("%Y-%m-01"));
+                        } else if ((sqlExpr0 instanceof SQLPropertyExpr) || (sqlExpr0 instanceof SQLIdentifierExpr)) {
+                            // 如果是列名
+                            x.setMethodName("DATE_FORMAT");
+                            x.setArgument(0, sqlExpr0);
+                            x.setArgument(1, new SQLCharExpr("%Y-%m-01"));
+                        } else if (sqlExpr0 instanceof SQLBinaryOpExpr) {
+                            SQLBinaryOperator operator = ((SQLBinaryOpExpr) sqlExpr0).getOperator();
+                            if (operator.equals(SQLBinaryOperator.Subtract)) {
+                                SQLMethodInvokeExpr dateSub = new SQLMethodInvokeExpr("DATE_SUB");
+                                if ((((SQLBinaryOpExpr) sqlExpr0).getLeft() instanceof SQLPropertyExpr) || (((SQLBinaryOpExpr) sqlExpr0).getLeft() instanceof SQLIdentifierExpr)) {
+                                    dateSub.addArgument(((SQLBinaryOpExpr) sqlExpr0).getLeft());
+                                } else {
+                                    dateSub.addArgument(new SQLMethodInvokeExpr("CURDATE"));
+                                }
+                                dateSub.addArgument(new SQLIdentifierExpr("INTERVAL " + ((SQLBinaryOpExpr) sqlExpr0).getRight() + " MONTH"));
+                                x.setMethodName("DATE_FORMAT");
+                                x.setArgument(0, dateSub);
+                                x.setArgument(1, new SQLCharExpr("%Y-%m-01"));
+                            } else if (operator.equals(SQLBinaryOperator.Add)) {
+                                SQLMethodInvokeExpr dateSub = new SQLMethodInvokeExpr("DATE_ADD");
+                                if ((((SQLBinaryOpExpr) sqlExpr0).getLeft() instanceof SQLPropertyExpr) || (((SQLBinaryOpExpr) sqlExpr0).getLeft() instanceof SQLIdentifierExpr)) {
+                                    dateSub.addArgument(((SQLBinaryOpExpr) sqlExpr0).getLeft());
+                                } else {
+                                    dateSub.addArgument(new SQLMethodInvokeExpr("CURDATE"));
+                                }
+                                dateSub.addArgument(new SQLIdentifierExpr("INTERVAL " + ((SQLBinaryOpExpr) sqlExpr0).getRight() + " MONTH"));
+                                x.setMethodName("DATE_FORMAT");
+                                x.setArgument(0, dateSub);
+                                x.setArgument(1, new SQLCharExpr("%Y-%m-01"));
+                            } else {
+                                x.setMethodName("TRUNCATE");
+                            }
+                        } else {
+                            x.setMethodName("TRUNCATE");
+                        }
+                    }
+                } else {
+                    x.setMethodName("TRUNCATE");
                 }
             }
         }
@@ -2586,7 +2774,11 @@ public class SQLASTOutputVisitor extends SQLASTVisitorAdapter implements Paramet
             item.setValueExpr(thenExpr);
             sqlCaseExpr.addItem(item);
         }
-        sqlCaseExpr.setElseExpr(arguments.get(arguments.size() - 1));
+        if (arguments.size() % 2 == 0) {
+            sqlCaseExpr.setElseExpr(arguments.get(arguments.size() - 1));
+        } else {
+            sqlCaseExpr.setElseExpr(new SQLNullExpr());
+        }
         return sqlCaseExpr;
     }
 
@@ -2736,8 +2928,7 @@ public class SQLASTOutputVisitor extends SQLASTVisitorAdapter implements Paramet
             SQLExpr sqlExpr0 = x.getArguments().get(0);
             SQLExpr sqlExpr1 = x.getArguments().get(1);
             SQLMethodInvokeExpr sqlMethodInvokeExpr = new SQLMethodInvokeExpr("GROUP_CONCAT");
-            SQLIdentifierExpr orderBy = new SQLIdentifierExpr(new SQLOrderBy(sqlExpr0).toString());
-            sqlMethodInvokeExpr.addArgument(new SQLIdentifierExpr(sqlExpr0.toString() + " " + orderBy + " SEPARATOR " + sqlExpr1));
+            sqlMethodInvokeExpr.addArgument(new SQLIdentifierExpr(sqlExpr0.toString() + " " + x.getOrderBy() + " SEPARATOR " + sqlExpr1));
             printExpr(sqlMethodInvokeExpr, print);
             return false;
         }
@@ -3267,7 +3458,8 @@ public class SQLASTOutputVisitor extends SQLASTVisitorAdapter implements Paramet
         if (from != null) {
             println();
 
-            boolean printFrom = from instanceof SQLLateralViewTableSource && ((SQLLateralViewTableSource) from).getTableSource() == null;
+            boolean printFrom =
+                    from instanceof SQLLateralViewTableSource && ((SQLLateralViewTableSource) from).getTableSource() == null;
             if (!printFrom) {
                 print0(ucase ? "FROM " : "from ");
             }
@@ -3622,7 +3814,8 @@ public class SQLASTOutputVisitor extends SQLASTVisitorAdapter implements Paramet
                         return;
                     }
                 } else if (expr instanceof SQLIdentifierExpr) {
-                    boolean quote = tableName.length() > 2 && tableName.charAt(0) == '`' && tableName.charAt(tableName.length() - 1) == '`';
+                    boolean quote =
+                            tableName.length() > 2 && tableName.charAt(0) == '`' && tableName.charAt(tableName.length() - 1) == '`';
                     if (quote) {
                         destTableName = tableMapping.get(tableName.substring(1, tableName.length() - 1));
                     }
@@ -7881,7 +8074,8 @@ public class SQLASTOutputVisitor extends SQLASTVisitorAdapter implements Paramet
                 }
 
                 String dataTypeName = dataType.getName();
-                boolean printType = (dataTypeName.startsWith("TABLE OF") && x.getDefaultValue() == null) || dataTypeName.equalsIgnoreCase("REF CURSOR") || dataTypeName.startsWith("VARRAY(");
+                boolean printType =
+                        (dataTypeName.startsWith("TABLE OF") && x.getDefaultValue() == null) || dataTypeName.equalsIgnoreCase("REF CURSOR") || dataTypeName.startsWith("VARRAY(");
                 if (printType) {
                     print0(ucase ? "TYPE " : "type ");
                 }
@@ -9182,7 +9376,8 @@ public class SQLASTOutputVisitor extends SQLASTVisitorAdapter implements Paramet
         if (x instanceof SQLStatement) {
             SQLStatement stmt = (SQLStatement) x;
 
-            boolean printSemi = printStatementAfterSemi == null ? stmt.isAfterSemi() : printStatementAfterSemi.booleanValue();
+            boolean printSemi = printStatementAfterSemi == null ? stmt.isAfterSemi() :
+                    printStatementAfterSemi.booleanValue();
 
             if (printSemi) {
                 print(';');

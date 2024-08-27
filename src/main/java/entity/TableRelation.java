@@ -136,7 +136,14 @@ public class TableRelation implements Comparable<TableRelation> {
 
     @Override
     public int compareTo(TableRelation o) {
-        // 先根据的preTable比大小，再根据postTable比大小
+        // 将外连接后置，用于设置正确的关联关系
+        if (this.getOuterRelation() != null && o.getOuterRelation() == null) {
+            return 1;
+        }
+        if (this.getOuterRelation() == null && o.getOuterRelation() != null) {
+            return -1;
+        }
+        // 先根据preTable比大小，再根据postTable比大小
         if (preTable.equals(o.getPreTable())) {
             return postTable.compareTo(o.getPostTable());
         } else {
@@ -154,6 +161,7 @@ public class TableRelation implements Comparable<TableRelation> {
 
     @Override
     public int hashCode() {
-        return Objects.hash(preTable, postTable, leftTable, rightTable, outerRelation, outerRelationType, innerRelation, commonRelation, sqlExpr);
+        return Objects.hash(preTable, postTable, leftTable, rightTable, outerRelation, outerRelationType,
+                innerRelation, commonRelation, sqlExpr);
     }
 }

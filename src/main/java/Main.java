@@ -1,7 +1,6 @@
 import convertor.SQLConvertor;
 
 import java.io.*;
-import java.util.ArrayList;
 
 public class Main {
     public static void readSqlStatementsFromFile(String filePath) throws IOException {
