@@ -1444,6 +1444,9 @@ public class SQLASTOutputVisitor extends SQLASTVisitorAdapter implements Paramet
                 SQLMethodInvokeExpr expr = new SQLMethodInvokeExpr("CURRENT_TIMESTAMP");
                 expr.getArguments().add(new SQLIdentifierExpr("6"));
                 printExpr(expr, parameterized, print);
+            } else if (identifierExpr.getName().equalsIgnoreCase("ROWNUM")) {
+                SQLIdentifierExpr expr = new SQLIdentifierExpr("ROW_NUMBER() OVER ()");
+                printExpr(expr, parameterized, print);
             } else {
                 if (print) {
                     visit(identifierExpr);
@@ -2932,6 +2935,23 @@ public class SQLASTOutputVisitor extends SQLASTVisitorAdapter implements Paramet
             printExpr(sqlMethodInvokeExpr, print);
             return false;
         }
+
+        // 处理ratio_to_report(...) OVER ( PARTITION BY ...)
+        if (methodName.equalsIgnoreCase("ratio_to_report")) {
+            SQLExpr sqlExpr = x.getArguments().get(0);
+
+            SQLBinaryOpExpr sqlBinaryOpExpr = new SQLBinaryOpExpr();
+            sqlBinaryOpExpr.setLeft(sqlExpr);
+            sqlBinaryOpExpr.setOperator(SQLBinaryOperator.Divide);
+
+            SQLMethodInvokeExpr sqlMethodInvokeExpr = new SQLMethodInvokeExpr("SUM");
+            sqlMethodInvokeExpr.addArgument(sqlExpr);
+            sqlBinaryOpExpr.setRight(sqlMethodInvokeExpr);
+
+            print0(sqlBinaryOpExpr + " OVER " + x.getOver());
+            return false;
+        }
+
 
         if (print) {
             print0(ucase ? methodName : methodName.toLowerCase());
